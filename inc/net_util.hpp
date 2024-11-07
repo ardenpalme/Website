@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <map>
 
 #include <stdio.h>
 #include <string.h>
@@ -12,50 +13,32 @@
 
 using namespace std;
 
-class Client {
+class ClientHandler {
 public:
-    Client(int _connfd) : connfd{_connfd} {
+    ClientHandler(int _connfd) : connfd{_connfd} {
         Rio_readinitb(&rio, connfd);
-        parse_request(connfd);
+        parse_request();
     }
 
-    ~Client() {
+    ~ClientHandler() {
         Close(connfd);
     }
 
-    void serve_static(void);
+    void serve_client(void);
 
-    friend ostream &operator<<(ostream &os, Client &cli);
+    friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
 private:
     int connfd;
     rio_t rio;
-    vector<string> requests;
+    vector<string> request_line;
+    map<string,string> request_hdrs;
 
-    void parse_request(int connfd) {
-        char buf[MAXLINE];
-        do{
-            Rio_readlineb(&rio, buf, MAXLINE);
-            string req_line(buf);
-            requests.push_back(req_line);
-        }while(strcmp(buf, "\r\n"));
-    }
+    void parse_request(void);
 
-    void get_filetype(char *filename, char *filetype) 
-    {
-        if (strstr(filename, ".html"))
-        strcpy(filetype, "text/html");
-        else if (strstr(filename, ".gif"))
-        strcpy(filetype, "image/gif");
-        else if (strstr(filename, ".png"))
-        strcpy(filetype, "image/png");
-        else if (strstr(filename, ".jpg"))
-        strcpy(filetype, "image/jpeg");
-        else
-        strcpy(filetype, "text/plain");
-    }  
+    void send_resp_hdr(string request_target, size_t file_size);
 
+    void serve_static(string request_target);
 };
 
-/* Client-specific handler */
-void handle_client(Client &client);
+void handle_client(ClientHandler &client);
