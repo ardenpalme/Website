@@ -1,6 +1,7 @@
 #include<iostream>
 #include<fstream>
 #include<string>
+#include<thread>
 
 #include "csapp.h"
 #include "net_util.hpp"
@@ -22,10 +23,9 @@ int main(int argc, char *argv[])
             100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
         printf("Accepted connection from %s:%s\n", cli_name, cli_port);
-        Client hndl(connfd);
-        std::cout << hndl;
-
-        Close(connfd);
+        Client client(connfd);
+        std::thread t1(handle_client, std::ref(client));
+        t1.join();
     }
 
     return 0;

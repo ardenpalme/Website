@@ -12,17 +12,18 @@
 
 using namespace std;
 
-class Client{
+class Client {
 public:
     Client(int _connfd) : connfd{_connfd} {
         Rio_readinitb(&rio, connfd);
         parse_request(connfd);
-        serve_static();
     }
 
     ~Client() {
         Close(connfd);
     }
+
+    void serve_static(void);
 
     friend ostream &operator<<(ostream &os, Client &cli);
 
@@ -33,7 +34,6 @@ private:
 
     void parse_request(int connfd) {
         char buf[MAXLINE];
-
         do{
             Rio_readlineb(&rio, buf, MAXLINE);
             string req_line(buf);
@@ -41,30 +41,21 @@ private:
         }while(strcmp(buf, "\r\n"));
     }
 
-    void serve_static(void) {
-        string req = requests[0];
-        size_t start_idx = req.find("/");
-        size_t end_idx = req.find("HTTP");
+    void get_filetype(char *filename, char *filetype) 
+    {
+        if (strstr(filename, ".html"))
+        strcpy(filetype, "text/html");
+        else if (strstr(filename, ".gif"))
+        strcpy(filetype, "image/gif");
+        else if (strstr(filename, ".png"))
+        strcpy(filetype, "image/png");
+        else if (strstr(filename, ".jpg"))
+        strcpy(filetype, "image/jpeg");
+        else
+        strcpy(filetype, "text/plain");
+    }  
 
-        string filename = req.substr(start_idx+1, end_idx-5);
-        if(filename.size() < 4) filename = "index.html";
-
-        ifstream ifs(filename, std::ifstream::binary);
-        if(!ifs) {
-            cout << filename << " non existant\n";
-            return;
-        }
-
-        std::filebuf* pbuf = ifs.rdbuf();
-        std::size_t file_size = pbuf->pubseekoff (0,ifs.end,ifs.in);
-        pbuf->pubseekpos (0,ifs.in);
-
-        char* buf=new char[file_size];
-        pbuf->sgetn (buf,file_size);
-        ifs.close();
-
-        Rio_writen(connfd, buf, file_size);
-
-        delete[] buf;
-    }
 };
+
+/* Client-specific handler */
+void handle_client(Client &client);
