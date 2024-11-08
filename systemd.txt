@@ -1,0 +1,13 @@
+/etc/systemd/system/web_server.service
+
+[Unit]
+Description=Web Server Service
+After=network.target
+
+[Service]
+ExecStart=/home/ubuntu/Web-Server/bin/web_server
+WorkingDirectory=/home/ubuntu/Web-Server/
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
