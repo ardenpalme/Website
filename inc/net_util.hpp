@@ -20,7 +20,7 @@ public:
         parse_request();
     }
 
-    ~ClientHandler() {
+    void cleanup(void) {
         Close(connfd);
     }
 

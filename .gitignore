@@ -2,3 +2,5 @@ build
 CMakeFiles
 CMakeCache.txt
 .vscode
+data
+bin

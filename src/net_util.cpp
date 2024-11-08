@@ -1,6 +1,8 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <thread>
+#include <pthread.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -15,6 +17,7 @@ using namespace std;
 
 void handle_client(ClientHandler &hndl) {
     hndl.serve_client();
+    hndl.cleanup();
 }
 
 void ClientHandler::serve_client(void) {
@@ -28,6 +31,7 @@ void ClientHandler::serve_client(void) {
 
     if(method == "GET") {
         if(uri.size() == 0) uri = "index.html";
+        uri.insert(0, "data/");
         serve_static(uri);
     }
 }
@@ -36,57 +40,24 @@ ostream &operator<<(ostream &os, ClientHandler &cli) {
     return os;
 }
 
-string get_filetype(string filename) {
-    string ret;
-    if(filename == ".html")
-        ret = "text/html";
-    else if(filename == ".png")
-        ret = "image/png";
-    else if(filename == ".jpg")
-        ret = "image/jpeg";
-    else
-        ret = "text/plain";
-
-    return ret;
-}  
-
-void ClientHandler::send_resp_hdr(string request_target, size_t file_size)
-{
-    char filetype[MAXLINE], buf[MAXLINE];
-
-    if (request_target == ".html")
-        strcpy(filetype, "text/html");
-    else if (request_target == ".gif")
-        strcpy(filetype, "image/gif");
-    else if (request_target == ".png")
-        strcpy(filetype, "image/png");
-    else if (request_target == ".jpg")
-        strcpy(filetype, "image/jpeg");
-    else
-        strcpy(filetype, "text/plain");
-
-    sprintf(buf, "HTTP/1.0 200 OK\r\n"); 
-    Rio_writen(connfd, buf, strlen(buf));
-    sprintf(buf, "Server: Tiny Web Server\r\n");
-    Rio_writen(connfd, buf, strlen(buf));
-    sprintf(buf, "Content-length: %lu\r\n", file_size);
-    Rio_writen(connfd, buf, strlen(buf));
-    sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
-    Rio_writen(connfd, buf, strlen(buf)); 
-}
-
 void get_filetype(char *filename, char *filetype) {
     if (strstr(filename, ".html"))
-    strcpy(filetype, "text/html");
+        strcpy(filetype, "text/html");
     else if (strstr(filename, ".gif"))
-    strcpy(filetype, "image/gif");
+        strcpy(filetype, "image/gif");
     else if (strstr(filename, ".png"))
-    strcpy(filetype, "image/png");
-    else if (strstr(filename, ".jpg"))
-    strcpy(filetype, "image/jpeg");
+        strcpy(filetype, "image/png");
+    else if (strstr(filename, ".jpg") || strstr(filename, ".jpeg"))
+        strcpy(filetype, "image/jpeg");
+    else if (strstr(filename, ".css"))
+        strcpy(filetype, "text/css");
+    else if (strstr(filename, ".js"))
+        strcpy(filetype, "application/javascript");
+    else if (strstr(filename, ".svg"))
+        strcpy(filetype, "image/svg+xml");
     else
-    strcpy(filetype, "text/plain");
-}  
+        strcpy(filetype, "text/plain");
+}
 
 void ClientHandler::serve_static(string filename) {
     char filetype[MAXLINE], buf[MAXLINE];

@@ -2,6 +2,7 @@
 #include<fstream>
 #include<string>
 #include<thread>
+#include<chrono>
 
 #include "csapp.h"
 #include "net_util.hpp"
@@ -18,14 +19,16 @@ int main(int argc, char *argv[])
     while(1) {
         char cli_name[100];
         char cli_port[100];
+        cout << "waiting for connections..." << endl;
         int connfd = Accept(listenfd, (struct sockaddr*)&addr, &msg_len);
         Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
             100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
         printf("Accepted connection from %s:%s\n", cli_name, cli_port);
         ClientHandler client_hndlr(connfd);
-        std::thread t1(handle_client, std::ref(client_hndlr));
-        t1.join();
+        std::thread cli_thread(handle_client, std::ref(client_hndlr));
+        cli_thread.detach();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     return 0;
 }
