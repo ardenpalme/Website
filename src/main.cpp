@@ -4,14 +4,14 @@
 #include<thread>
 #include<chrono>
 
-#include "csapp.h"
-#include "net_util.hpp"
-
 #include <unistd.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+
+#include "csapp.h"
+#include "client.hpp"
 
 void init_openssl() {
     SSL_load_error_strings();
@@ -58,50 +58,46 @@ int main(int argc, char *argv[])
     init_openssl();
     SSL_CTX *ctx = create_context();
     configure_context(ctx);
+    auto ssl_mutex_ptr = make_shared<mutex>();
 
     int listenfd = Open_listenfd((char*)srv_port_str.c_str());
 
     struct sockaddr_storage addr;
     socklen_t msg_len = sizeof(struct sockaddr_storage);
+    int ret;
     
     while(1) {
         char cli_name[100];
         char cli_port[100];
-        cout << "waiting for connections..." << endl;
         int connfd = Accept(listenfd, (struct sockaddr*)&addr, &msg_len);
         Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
             100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
-        printf("Accepted connection from %s:%s\n", cli_name, cli_port);
-        /*
-        ClientHandler client_hndlr(connfd);
-        std::thread cli_thread(handle_client, std::ref(client_hndlr));
-        cli_thread.detach();
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        */
+        //printf("Accepted connection from %s:%s\n", cli_name, cli_port);
 
-
+        ssl_mutex_ptr->lock();
         SSL *ssl = SSL_new(ctx);
-        SSL_set_fd(ssl, connfd);
-
-        if (SSL_accept(ssl) <= 0) {
+        if(!ssl){
+            cout << "SSL is NULL!\n";
+            exit(1);
+        } 
+        if((ret=SSL_set_fd(ssl, connfd)) < 0){
+            cerr << "SSL error(1): " << ERR_error_string(ERR_get_error(), nullptr) << endl;
             ERR_print_errors_fp(stderr);
-        } else {
-            std::cout << "TLS handshake successful" << std::endl;
-
-            // Simple HTTPS response
-            const char *response =
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/plain\r\n"
-                "Content-Length: 12\r\n\r\n"
-                "Hello World";
-            
-            SSL_write(ssl, response, strlen(response));
+            exit(1);
         }
 
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        Close(connfd);
+        if (ret = SSL_accept(ssl) <= 0) {
+            cerr << "SSL read error(2): " << ERR_error_string(ERR_get_error(), nullptr) << endl;
+            ERR_print_errors_fp(stderr);
+            exit(1);
+        } 
+        ssl_mutex_ptr->unlock();
+
+        ClientHandler client_hndlr(connfd, ssl, ssl_mutex_ptr);
+        std::thread cli_thread(handle_client, std::ref(client_hndlr));
+
+        cli_thread.join();
     }
     return 0;
 }
