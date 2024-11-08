@@ -19,9 +19,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 file(GLOB SRC_FILES "${SRC_DIR}/*.cpp" "${SRC_DIR}/*.c")
 
+find_package(OpenSSL REQUIRED)
+
 add_executable(${PROJ} ${SRC_FILES})
 
 target_include_directories(${PROJ} PRIVATE ${INC_DIR})
-#target_link_libraries(${PROJ} PRIVATE pthread)
+target_link_libraries(${PROJ} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
 set_target_properties(${PROJ} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})

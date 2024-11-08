@@ -21,6 +21,9 @@ public:
     }
 
     void cleanup(void) {
+        if (fsync(connfd) < 0) {
+            perror("fsync error");
+        }
         Close(connfd);
     }
 
