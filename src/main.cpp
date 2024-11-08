@@ -37,7 +37,6 @@ SSL_CTX *create_context() {
 }
 
 void configure_context(SSL_CTX *ctx) {
-    // Load server certificate and private key
     if (SSL_CTX_use_certificate_file(ctx, "/etc/ssl/certs/www_ardenpalme_com.pem", SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
@@ -54,7 +53,6 @@ int main(int argc, char *argv[])
     uint16_t srv_port = 443;
     std::string srv_port_str = std::to_string((int)srv_port);
 
-    // Initialize OpenSSL
     init_openssl();
     SSL_CTX *ctx = create_context();
     configure_context(ctx);
@@ -72,8 +70,6 @@ int main(int argc, char *argv[])
         int connfd = Accept(listenfd, (struct sockaddr*)&addr, &msg_len);
         Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
             100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
-
-        //printf("Accepted connection from %s:%s\n", cli_name, cli_port);
 
         ssl_mutex_ptr->lock();
         SSL *ssl = SSL_new(ctx);

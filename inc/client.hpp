@@ -1,5 +1,5 @@
-#ifndef __NET_UTIL_HPP__
-#define __NET_UTIL_HPP__
+#ifndef __CLIENT_HPP__
+#define __CLIENT_HPP__
 
 #include <iostream>
 #include <fstream>
@@ -35,9 +35,9 @@ public:
     ClientHandler(int _connfd, SSL *_ssl, shared_ptr<mutex> _ssl_mutex) : 
         connfd{_connfd}, ssl{_ssl}, ssl_mutex{_ssl_mutex} {}
 
-    cli_err cleanup(); 
+    cli_err cleanup(void);
 
-    cli_err parse_request();
+    cli_err parse_request(void);
 
     cli_err serve_client(void);
 
@@ -59,4 +59,4 @@ private:
 void handle_client(ClientHandler &client);
 
 
-#endif /* __NET_UTIL_HPP__ */
+#endif /* __CLIENT_HPP__ */
