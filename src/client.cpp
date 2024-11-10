@@ -19,6 +19,10 @@
 
 using namespace std;
 
+const string srv_hostname = "ardenpalme.com";
+const string srv_static_ip = "54.177.178.124";
+const string dashboard_port = "8050";
+
 void handle_client(ClientHandler &hndl) {
     cli_err err;
     err = hndl.parse_request();
@@ -62,23 +66,38 @@ cli_err ClientHandler::serve_client(void) {
     string protocol = request_line[2];
 
     if(method == "GET") {
-        if(uri == "/") {
-            uri = "index.html";
-        }else{ 
-            uri = uri.substr(1);
-        }
-        uri.insert(0, "data/");
-        try {
+        if(uri == "/dashboard") { 
+            string redirect_url = "https://" + srv_hostname + ":" + dashboard_port;
+            redirect(redirect_url);
+        }else{
+            if(uri == "/") {
+                uri = "index.html";
+            }else{ 
+                uri = uri.substr(1);
+            }
+            uri.insert(0, "data/");
             serve_static(uri);
-        } catch (const exception &e) {
-            cerr << "Error serving static content: " << e.what() << endl;
-            return cli_err::SERVE_ERROR;
         }
     } else {
         cerr << "Unsupported HTTP method: " << method << endl;
         return cli_err::SERVE_ERROR;
     }
     return cli_err::NONE;
+}
+
+void ClientHandler::redirect(string target) {
+    char buf[MAXLINE];
+
+    lock_guard<mutex> lock(*ssl_mutex);
+
+    sprintf(buf, "HTTP/1.1 302 Found\r\n"); 
+    SSL_write(ssl, buf, strlen(buf));
+
+    sprintf(buf, "Location: %s\r\n\r\n", target.c_str());
+    SSL_write(ssl, buf, strlen(buf));
+
+    sprintf(buf, "Connection: close\r\n\r\n");
+    SSL_write(ssl, buf, strlen(buf));
 }
 
 void ClientHandler::serve_static(string filename) {

@@ -46,6 +46,16 @@ void configure_context(SSL_CTX *ctx) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
+
+    // Ensure the private key is valid
+    if (!SSL_CTX_check_private_key(ctx)) {
+        cerr << "Private key does not match the public certificate" << endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Enforce TLSv1.2
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
+
 }
 
 int main(int argc, char *argv[])

@@ -54,6 +54,8 @@ private:
     void send_resp_hdr(string request_target, size_t file_size);
 
     void serve_static(string request_target);
+
+    void redirect(string target);
 };
 
 void handle_client(ClientHandler &client);
