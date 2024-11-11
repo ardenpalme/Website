@@ -1,5 +1,3 @@
-import requests
-import os
 import ssl
 from datetime import datetime
 import pandas as pd 
@@ -8,43 +6,8 @@ import dash
 from dash import dcc, html, Input, Output
 import plotly.graph_objs as go
 from flask_caching import Cache
+from market_data import get_polygon_data
 
-polygon_api_key = os.getenv('POLYGON_API_KEY')  
-
-def get_polygon_data(ticker, start_date, end_date):
-    #for crypto tickers
-    url = "https://api.polygon.io/v2/aggs/ticker/X:{}/range/1/day/{}/{}?".format(
-        ticker,
-        start_date,
-        end_date)
-
-    params = {
-        'adjusted': 'true',
-        'sort': 'asc',
-        'apiKey': polygon_api_key }
-
-    #print("curl ", requests.Request('GET', url, params=params).prepare().url)
-    response = requests.get(url, params=params)
-    if response.status_code != 200:
-        print(f"Failed to fetch data. Status code: {response.status_code}")
-        return None
-
-    data = response.json()
-
-    df = pd.DataFrame(data['results'])
-    df['t'] = pd.to_datetime(df['t'], unit='ms')
-    df.set_index('t', inplace=True)
-    df = df.drop(columns=[col for col in {'v', 'vw', 'n'} if col in df.columns])
-    df = df.astype(float)
-    df.index = df.index.date
-    #print(df.head())
-
-    df.rename(columns={'o' : f'{ticker}_open',
-                       'h' : f'{ticker}_high',
-                       'l' : f'{ticker}_low',
-                       'c' : f'{ticker}_close'}, inplace=True)
-
-    return df
 
 def plot_timeseries(fig, ohlc_data, title):
     # Create the candlestick chart
@@ -70,10 +33,10 @@ def plot_timeseries(fig, ohlc_data, title):
             showgrid=False,
             color='#080808'
         ),
-        yaxis=dict(showgrid=False, color='white'),
+        yaxis=dict(showgrid=False, color='#080808'),
         paper_bgcolor='#ffffff',
         plot_bgcolor='#ffffff',
-        font=dict(family='Inconsolata', color='#080808', size=10),
+        font=dict(family='Inconsolata, monospace', color='#080808', size=10),
         margin=dict(l=10, r=10, t=10, b=10)
     )
 
@@ -81,9 +44,9 @@ def plot_timeseries(fig, ohlc_data, title):
     fig.add_annotation(
         text=title,
         xref="paper", yref="paper",
-        x=0.5, y=0.9,  # Position in the chart
+        x=0.5, y=1.0,  # Position in the chart
         showarrow=False,
-        font=dict(family='Inconsolata', size=16, color='#080808'),
+        font=dict(family='Inconsolata, monospace', size=16, color='#080808'),
         align='center',
         bordercolor='#ffffff',
         borderwidth=2,
@@ -141,20 +104,20 @@ def create_app(func_ptrs, ohlc_data_list, ticker_names):
 
     # Define the layout with multiple graphs in a grid
     app.layout = html.Div(
-        style={'backgroundColor': '#ffffff', 'padding': '20px', 'boxSizing': 'border-box'},
+        style={'backgroundColor': '#ffffff', 'padding': '20px', 'boxSizing': 'border-box', 'font-family': 'Inconsolata'},
         children=[
             html.H2(
                 "Automated Plotly Timeseries Dashboard",
-                style={'color': 'black', 
+                style={'color': '#080808', 
                        'text-align': 'center',
-                        'font-family': 'Inconsolata',
-                        'font-size': '20px'
+                        'font-family': 'Inconsolata, monospace',
+                        'font-size': '16px'
                        }
             ),
             html.Div(
                 style={
                     'display': 'grid',
-                    'gridTemplateColumns': '1fr 1fr',  # Two columns
+                    'gridTemplateColumns': 'repeat(auto-fit, minmax(400px, 1fr))',
                     'gap': '20px',
                     'width': '100%',
                     'boxSizing': 'border-box'
