@@ -91,7 +91,7 @@ def generate_dataset(start_date, tickers):
         dataset.append(ohlc_data)
     
     return dataset
-    
+
 def create_app(func_ptrs, ohlc_data_list, ticker_names):
     refresh_time_sec = 3600
     app = dash.Dash(__name__)
@@ -108,11 +108,7 @@ def create_app(func_ptrs, ohlc_data_list, ticker_names):
         children=[
             html.H2(
                 "Automated Plotly Timeseries Dashboard",
-                style={'color': '#080808', 
-                       'text-align': 'center',
-                        'font-family': 'Inconsolata, monospace',
-                        'font-size': '16px'
-                       }
+                style={'color': '#080808', 'text-align': 'center', 'font-family': 'Inconsolata, monospace', 'font-size': '16px'}
             ),
             html.Div(
                 style={
@@ -126,14 +122,15 @@ def create_app(func_ptrs, ohlc_data_list, ticker_names):
                     dcc.Graph(
                         id=f'timeseries-graph-{i}',
                         config={'displayModeBar': False},
-                        style={'height': '400px', 'width': '100%'}
+                        style={'height': '400px', 'width': '100%'},
+                        animate=False
                     )
                     for i in range(len(func_ptrs))
                 ]
             ),
             dcc.Interval(
                 id='interval-component',
-                interval=refresh_time_sec * 1000,  # Convert seconds to milliseconds
+                interval=refresh_time_sec * 1000,
                 n_intervals=0
             )
         ]
@@ -142,19 +139,36 @@ def create_app(func_ptrs, ohlc_data_list, ticker_names):
     # Cache the graph generation function
     @cache.memoize(timeout=refresh_time_sec)
     def generate_cached_figure(func_ptr, ohlc_data, ticker_name):
-        print(f"Regenerating figure for {ticker_name}")
         return func_ptr(ohlc_data, ticker_name)
 
-    # Create a callback for each graph to update automatically
-    for i, (func_ptr, ohlc_data, ticker_name) in enumerate(zip(func_ptrs, ohlc_data_list, ticker_names)):
-        @app.callback(
-            Output(f'timeseries-graph-{i}', 'figure'),
-            Input('interval-component', 'n_intervals')
-        )
-        def update_graph(n_intervals, func_ptr=func_ptr, ohlc_data=ohlc_data, ticker_name=ticker_name):
-            return generate_cached_figure(func_ptr, ohlc_data, ticker_name)
+    # Callback to synchronize zoom across all charts
+    @app.callback(
+        [Output(f'timeseries-graph-{i}', 'figure') for i in range(len(func_ptrs))],
+        [Input('interval-component', 'n_intervals')] +
+        [Input(f'timeseries-graph-{i}', 'relayoutData') for i in range(len(func_ptrs))]
+    )
+    def update_all_graphs(n_intervals, *relayout_data_list):
+        # Determine if any of the graphs have been zoomed
+        zoom_range = None
+        for relayout_data in relayout_data_list:
+            if relayout_data and 'xaxis.range[0]' in relayout_data and 'xaxis.range[1]' in relayout_data:
+                zoom_range = [relayout_data['xaxis.range[0]'], relayout_data['xaxis.range[1]']]
+                break
+
+        # Generate figures and apply zoom range if available
+        figures = []
+        for func_ptr, ohlc_data, ticker_name in zip(func_ptrs, ohlc_data_list, ticker_names):
+            fig = generate_cached_figure(func_ptr, ohlc_data, ticker_name)
+            
+            # Apply the zoom range to all charts if detected
+            if zoom_range:
+                fig.update_layout(xaxis=dict(range=zoom_range))
+            
+            figures.append(fig)
+        return figures
 
     return app
+
 
 def create_chart_1(data, title):
     return create_timeseries_chart(data, title)
