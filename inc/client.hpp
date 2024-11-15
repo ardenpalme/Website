@@ -45,7 +45,7 @@ public:
 
     cli_err parse_request(void);
 
-    cli_err serve_client(shared_ptr<Cache> cache);
+    cli_err serve_client(void);
 
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
@@ -56,7 +56,6 @@ private:
     SSL *ssl;
     vector<string> request_line;
     map<string,string> request_hdrs;
-    shared_ptr<mutex> ssl_mutex;
 
     void send_resp_hdr(string request_target, size_t file_size);
 

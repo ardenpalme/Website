@@ -56,8 +56,6 @@ cli_err ClientHandler::serve_client(shared_ptr<Cache> cache) {
 void ClientHandler::redirect(string target) {
     char buf[MAXLINE];
 
-    lock_guard<mutex> lock(*ssl_mutex);
-
     sprintf(buf, "HTTP/1.1 302 Found\r\n"); 
     SSL_write(ssl, buf, strlen(buf));
 
@@ -104,9 +102,7 @@ void ClientHandler::serve_static(string filename, shared_ptr<Cache> cache) {
 cli_err ClientHandler::parse_request() {
     char *raw_req = new char[MAX_FILESIZE];
 
-    ssl_mutex->lock();
     int bytes_read = SSL_read(ssl, raw_req, MAX_FILESIZE);
-    ssl_mutex->unlock();
 
     if (bytes_read <= 0) {
         int ssl_error = SSL_get_error(ssl, bytes_read);
@@ -164,7 +160,6 @@ cli_err ClientHandler::parse_request() {
 }
 
 cli_err ClientHandler::cleanup() {
-    lock_guard<mutex> lock(*ssl_mutex);
     if (SSL_shutdown(ssl) < 0) {
         cerr << "Error shutting down SSL: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
         SSL_free(ssl);
@@ -175,17 +170,4 @@ cli_err ClientHandler::cleanup() {
     SSL_free(ssl);
     Close(connfd);
     return cli_err::NONE;
-}
-
-ostream &operator<<(ostream &os, ClientHandler &cli) {
-
-    string method = cli.request_line[0];
-    string uri = cli.request_line[1];
-    string protocol = cli.request_line[2];
-
-    cout << "method = [" << method << "]" << endl
-         << "uri = [" << uri << "]" << endl
-         << "protocol = [" << protocol << "]" << endl;
-
-    return os;
 }
