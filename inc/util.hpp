@@ -5,8 +5,9 @@
 #include <vector>
 #include <fstream>
 #include <map>
-#include <mutex>
+#include <shared_mutex>
 #include <tuple>
+#include <mutex>
 
 #include <zlib.h>
 
@@ -16,7 +17,7 @@ class Cache {
 public:
     Cache() {}
     pair<char*, size_t> get_cached_page(string filename) {
-        std::unique_lock lck {mtx};
+        std::shared_lock lck {mtx};
         auto iter = cached_pages.find(filename);
 
         if(iter == cached_pages.end()) return {NULL, 0};
@@ -29,7 +30,7 @@ public:
     }
 private:
     map<string, pair<char*, size_t>> cached_pages;
-    mutex mtx;
+    shared_mutex mtx;
 };
 
 void get_filetype(char *filename, char *filetype);

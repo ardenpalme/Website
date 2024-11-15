@@ -44,7 +44,7 @@ cli_err ClientHandler::serve_client(shared_ptr<Cache> cache) {
                 uri = uri.substr(1);
             }
             uri.insert(0, "data/");
-            serve_static(uri, cache);
+            serve_static_compress(uri, cache);
         }
     } else {
         cerr << "Unsupported HTTP method: " << method << endl;
@@ -66,7 +66,40 @@ void ClientHandler::redirect(string target) {
     SSL_write(ssl, buf, strlen(buf));
 }
 
-void ClientHandler::serve_static(string filename, shared_ptr<Cache> cache) {
+void ClientHandler::serve_static(string filename) {
+    char filetype[MAXLINE], buf[MAXLINE];
+
+    ifstream ifs(filename, std::ifstream::binary);
+    if(!ifs) {
+        cerr << filename << " non found." << endl;
+        return;
+    }
+
+    std::filebuf* pbuf = ifs.rdbuf();
+    std::size_t file_size = pbuf->pubseekoff (0,ifs.end,ifs.in);
+    pbuf->pubseekpos (0,ifs.in);
+
+    char* file_buf=new char[file_size];
+    pbuf->sgetn (file_buf,file_size);
+    ifs.close();
+
+    /* Send response headers to client */
+    get_filetype((char*)filename.c_str(), filetype);    //line:netp:servestatic:getfiletype
+    sprintf(buf, "HTTP/1.0 200 OK\r\n"); //line:netp:servestatic:beginserve
+    SSL_write(ssl, buf, strlen(buf));
+    sprintf(buf, "Server: Tiny Web Server\r\n");
+    SSL_write(ssl, buf, strlen(buf));
+    sprintf(buf, "Content-length: %lu\r\n", file_size);
+    SSL_write(ssl, buf, strlen(buf));
+    sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
+    SSL_write(ssl, buf, strlen(buf));
+
+    SSL_write(ssl, file_buf, file_size);
+
+    delete[] file_buf;
+}
+
+void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache> cache) {
     char filetype[MAXLINE], buf[MAXLINE];
     pair<char*, size_t> zipped_data;
 
@@ -78,7 +111,6 @@ void ClientHandler::serve_static(string filename, shared_ptr<Cache> cache) {
         zipped_data = query_result;
     }
 
-    lock_guard<mutex> lock(*ssl_mutex);
 
     get_filetype((char*)filename.c_str(), filetype);    
     sprintf(buf, "HTTP/1.0 200 OK\r\n"); 

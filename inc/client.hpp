@@ -35,17 +35,21 @@ class ClientHandler {
 public:
     ClientHandler(int _connfd, 
                   SSL *_ssl, 
-                  shared_ptr<mutex> _ssl_mutex, 
                   char *_cli_name,
                   char *_cli_port) : 
-        connfd{_connfd}, ssl{_ssl}, ssl_mutex{_ssl_mutex},
-        cli_name(cli_name), cli_port(_cli_port) {}
+        connfd{_connfd}, ssl{_ssl} {
+            if(_cli_name != NULL) cli_name = string(_cli_name);
+            else cli_name = nullptr;
+
+            if(_cli_port != NULL) cli_port = string(_cli_port);
+            else cli_port = nullptr;
+        }
 
     cli_err cleanup(void);
 
     cli_err parse_request(void);
 
-    cli_err serve_client(void);
+    cli_err serve_client(shared_ptr<Cache> cache);
 
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
@@ -59,7 +63,9 @@ private:
 
     void send_resp_hdr(string request_target, size_t file_size);
 
-    void serve_static(string request_target, shared_ptr<Cache> cache);
+    void serve_static(string request_target);
+
+    void serve_static_compress(string request_target, shared_ptr<Cache> cache);
 
     void redirect(string target);
 };
