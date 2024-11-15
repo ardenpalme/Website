@@ -17,6 +17,7 @@
 #include <openssl/err.h>
 
 #include "csapp.h"
+#include "util.hpp"
 
 using namespace std;
 
@@ -32,19 +33,25 @@ enum class cli_err {
 
 class ClientHandler {
 public:
-    ClientHandler(int _connfd, SSL *_ssl, shared_ptr<mutex> _ssl_mutex) : 
-        connfd{_connfd}, ssl{_ssl}, ssl_mutex{_ssl_mutex} {}
+    ClientHandler(int _connfd, 
+                  SSL *_ssl, 
+                  shared_ptr<mutex> _ssl_mutex, 
+                  char *_cli_name,
+                  char *_cli_port) : 
+        connfd{_connfd}, ssl{_ssl}, ssl_mutex{_ssl_mutex},
+        cli_name(cli_name), cli_port(_cli_port) {}
 
     cli_err cleanup(void);
 
     cli_err parse_request(void);
 
-    cli_err serve_client(void);
+    cli_err serve_client(shared_ptr<Cache> cache);
 
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
 private:
     int connfd;
+    string cli_name, cli_port;
     rio_t rio;
     SSL *ssl;
     vector<string> request_line;
@@ -53,12 +60,9 @@ private:
 
     void send_resp_hdr(string request_target, size_t file_size);
 
-    void serve_static(string request_target);
+    void serve_static(string request_target, shared_ptr<Cache> cache);
 
     void redirect(string target);
 };
-
-void handle_client(ClientHandler &client);
-
 
 #endif /* __CLIENT_HPP__ */

@@ -23,39 +23,7 @@ const string srv_hostname = "ardenpalme.com";
 const string srv_static_ip = "54.177.178.124";
 const string dashboard_port = "8050";
 
-void handle_client(ClientHandler &hndl) {
-    cli_err err;
-    err = hndl.parse_request();
-    while(err == cli_err::RETRY) {
-        err = hndl.parse_request();
-    }
-
-    if (err == cli_err::PARSE_ERROR) {
-        cerr << "Request parsing failed." << endl;
-        hndl.cleanup();
-        return;
-
-    } else if (err == cli_err::CLI_CLOSED_CONN) {
-        cerr << "Client closed connection during request parsing." << endl;
-        hndl.cleanup();
-        return;
-
-    } else if (err != cli_err::NONE) {
-        cerr << "Error during request parsing." << endl;
-        hndl.cleanup();
-        return;
-    }
-
-    if((err=hndl.serve_client()) != cli_err::NONE) {
-        cerr << "Error serving client request." << endl;
-        hndl.cleanup();
-        return;
-    }
-
-    hndl.cleanup();
-}
-
-cli_err ClientHandler::serve_client(void) {
+cli_err ClientHandler::serve_client(shared_ptr<Cache> cache) {
     if (request_line.size() < 3) {
         cerr << "Invalid request line format." << endl;
         return cli_err::SERVE_ERROR;
@@ -76,7 +44,7 @@ cli_err ClientHandler::serve_client(void) {
                 uri = uri.substr(1);
             }
             uri.insert(0, "data/");
-            serve_static(uri);
+            serve_static(uri, cache);
         }
     } else {
         cerr << "Unsupported HTTP method: " << method << endl;
@@ -100,38 +68,37 @@ void ClientHandler::redirect(string target) {
     SSL_write(ssl, buf, strlen(buf));
 }
 
-void ClientHandler::serve_static(string filename) {
+void ClientHandler::serve_static(string filename, shared_ptr<Cache> cache) {
     char filetype[MAXLINE], buf[MAXLINE];
+    pair<char*, size_t> zipped_data;
 
-    ifstream ifs(filename, std::ifstream::binary);
-    if(!ifs) {
-        cerr << filename << " non found." << endl;
-        return;
+    auto query_result = cache->get_cached_page(filename);
+    if(query_result.second == 0) {
+        zipped_data = deflate_file(filename, Z_DEFAULT_COMPRESSION);
+        cache->set_cached_page({filename, zipped_data});
+    }else{
+        zipped_data = query_result;
     }
 
-    std::filebuf* pbuf = ifs.rdbuf();
-    std::size_t file_size = pbuf->pubseekoff (0,ifs.end,ifs.in);
-    pbuf->pubseekpos (0,ifs.in);
-
-    char* file_buf=new char[file_size];
-    pbuf->sgetn (file_buf,file_size);
-    ifs.close();
-
     lock_guard<mutex> lock(*ssl_mutex);
-    /* Send response headers to client */
-    get_filetype((char*)filename.c_str(), filetype);    //line:netp:servestatic:getfiletype
-    sprintf(buf, "HTTP/1.0 200 OK\r\n"); //line:netp:servestatic:beginserve
+
+    get_filetype((char*)filename.c_str(), filetype);    
+    sprintf(buf, "HTTP/1.0 200 OK\r\n"); 
     SSL_write(ssl, buf, strlen(buf));
+
     sprintf(buf, "Server: Tiny Web Server\r\n");
     SSL_write(ssl, buf, strlen(buf));
-    sprintf(buf, "Content-length: %lu\r\n", file_size);
+
+    sprintf(buf, "Content-Encoding: deflate\r\n");
     SSL_write(ssl, buf, strlen(buf));
+
+    sprintf(buf, "Content-length: %lu\r\n", zipped_data.second);
+    SSL_write(ssl, buf, strlen(buf));
+
     sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
     SSL_write(ssl, buf, strlen(buf));
 
-    SSL_write(ssl, file_buf, file_size);
-
-    delete[] file_buf;
+    SSL_write(ssl, zipped_data.first, zipped_data.second);
 }
 
 cli_err ClientHandler::parse_request() {
@@ -143,27 +110,26 @@ cli_err ClientHandler::parse_request() {
 
     if (bytes_read <= 0) {
         int ssl_error = SSL_get_error(ssl, bytes_read);
+        delete[] raw_req; 
         
         switch (ssl_error) {
             case SSL_ERROR_ZERO_RETURN:
                 cerr << "Client closed connection." << endl;
-                delete[] raw_req;
                 return cli_err::CLI_CLOSED_CONN;
 
             case SSL_ERROR_WANT_READ:
             case SSL_ERROR_WANT_WRITE:
                 cerr << "SSL read wants retry." << endl;
-                delete[] raw_req;
                 return cli_err::RETRY;
 
             default:
                 cerr << "SSL read error: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
-                delete[] raw_req;
                 return cli_err::FATAL;
         }
     }
 
     string req_str(raw_req);
+    delete[] raw_req;
 
     vector<string> request_lines = splitline(req_str, '\r');
 

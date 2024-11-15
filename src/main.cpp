@@ -11,68 +11,25 @@
 #include <openssl/err.h>
 
 #include "csapp.h"
+#include "util.hpp"
 #include "client.hpp"
+#include "server.hpp"
 
-void init_openssl() {
-    SSL_load_error_strings();
-    OpenSSL_add_ssl_algorithms();
-}
+void handle_client(ClientHandler &cli_hndl, ServerContext &srv_hndl);
 
-void cleanup_openssl() {
-    EVP_cleanup();
-}
-
-SSL_CTX *create_context() {
-    const SSL_METHOD *method;
-    SSL_CTX *ctx;
-
-    method = SSLv23_server_method();
-    ctx = SSL_CTX_new(method);
-    if (!ctx) {
-        perror("Unable to create SSL context");
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-    return ctx;
-}
-
-void configure_context(SSL_CTX *ctx) {
-    if (SSL_CTX_use_certificate_file(ctx, "/etc/ssl/certs/www_ardenpalme_com.pem", SSL_FILETYPE_PEM) <= 0) {
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    if (SSL_CTX_use_PrivateKey_file(ctx, "/etc/ssl/private/custom.key", SSL_FILETYPE_PEM) <= 0) {
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
-    }
-
-    // Ensure the private key is valid
-    if (!SSL_CTX_check_private_key(ctx)) {
-        cerr << "Private key does not match the public certificate" << endl;
-        exit(EXIT_FAILURE);
-    }
-
-    // Enforce TLSv1.2
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1);
-
-}
-
-int main(int argc, char *argv[])
-{
-    uint16_t srv_port = 443;
-    std::string srv_port_str = std::to_string((int)srv_port);
-
-    init_openssl();
-    SSL_CTX *ctx = create_context();
-    configure_context(ctx);
-    auto ssl_mutex_ptr = make_shared<mutex>();
-
-    int listenfd = Open_listenfd((char*)srv_port_str.c_str());
-
+int main(int argc, char *argv[]) {
+    int listenfd, ret;
     struct sockaddr_storage addr;
-    socklen_t msg_len = sizeof(struct sockaddr_storage);
-    int ret;
+    uint16_t srv_port = 443;
+    socklen_t msg_len;
+
+    ServerContext srv_ctx(srv_port);
+
+    std::string srv_port_str = std::to_string((int)srv_port);
+    listenfd = Open_listenfd((char*)srv_port_str.c_str());
+
+    auto ssl_mutex_ptr = make_shared<mutex>();
+    msg_len = sizeof(struct sockaddr_storage);
     
     while(1) {
         char cli_name[100];
@@ -80,30 +37,69 @@ int main(int argc, char *argv[])
         int connfd = Accept(listenfd, (struct sockaddr*)&addr, &msg_len);
         Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
             100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
-
+        
         ssl_mutex_ptr->lock();
-        SSL *ssl = SSL_new(ctx);
+        SSL *ssl = srv_ctx.make_ssl();
         if(!ssl){
             cout << "SSL is NULL!\n";
-            exit(1);
+            ssl_mutex_ptr->unlock();
+            Close(connfd);
+            continue;
         } 
         if((ret=SSL_set_fd(ssl, connfd)) < 0){
-            cerr << "SSL error(1): " << ERR_error_string(ERR_get_error(), nullptr) << endl;
-            ERR_print_errors_fp(stderr);
-            exit(1);
+            cerr << "SSL error during setting fd: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
+            SSL_free(ssl);
+            ssl_mutex_ptr->unlock();
+            Close(connfd);
+            continue;
         }
 
         if (ret = SSL_accept(ssl) <= 0) {
-            cerr << "SSL read error(2): " << ERR_error_string(ERR_get_error(), nullptr) << endl;
-            ERR_print_errors_fp(stderr);
-            exit(1);
+            cerr << "SSL accept error: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
+            SSL_free(ssl);
+            ssl_mutex_ptr->unlock();
+            Close(connfd);
+            continue;
         } 
         ssl_mutex_ptr->unlock();
 
-        ClientHandler client_hndlr(connfd, ssl, ssl_mutex_ptr);
-        std::thread cli_thread(handle_client, std::ref(client_hndlr));
-
+        auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, ssl, ssl_mutex_ptr, cli_name, cli_port);
+        srv_ctx.enqueue_client(cli_hndl_ptr);
+        std::thread cli_thread(handle_client, std::ref(*cli_hndl_ptr), std::ref(srv_ctx));
         cli_thread.join();
     }
     return 0;
+}
+
+void handle_client(ClientHandler &cli_hndl, ServerContext &srv_ctx) {
+    cli_err err;
+    err = cli_hndl.parse_request();
+    while(err == cli_err::RETRY) {
+        err = cli_hndl.parse_request();
+    }
+
+    if (err == cli_err::PARSE_ERROR) {
+        cerr << "Request parsing failed." << endl;
+        cli_hndl.cleanup();
+        return;
+
+    } else if (err == cli_err::CLI_CLOSED_CONN) {
+        cerr << "Client closed connection during request parsing." << endl;
+        cli_hndl.cleanup();
+        return;
+
+    } else if (err != cli_err::NONE) {
+        cerr << "Error during request parsing." << endl;
+        cli_hndl.cleanup();
+        return;
+    }
+
+    auto cache = srv_ctx.get_cache();
+    if((err=cli_hndl.serve_client(cache)) != cli_err::NONE) {
+        cerr << "Error serving client request." << endl;
+        cli_hndl.cleanup();
+        return;
+    }
+
+    cli_hndl.cleanup();
 }
