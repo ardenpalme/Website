@@ -23,37 +23,6 @@ const string srv_hostname = "ardenpalme.com";
 const string srv_static_ip = "54.177.178.124";
 const string dashboard_port = "8050";
 
-void handle_client(ClientHandler &hndl) {
-    cli_err err;
-    err = hndl.parse_request();
-    while(err == cli_err::RETRY) {
-        err = hndl.parse_request();
-    }
-
-    if (err == cli_err::PARSE_ERROR) {
-        cerr << "Request parsing failed." << endl;
-        hndl.cleanup();
-        return;
-
-    } else if (err == cli_err::CLI_CLOSED_CONN) {
-        cerr << "Client closed connection during request parsing." << endl;
-        hndl.cleanup();
-        return;
-
-    } else if (err != cli_err::NONE) {
-        cerr << "Error during request parsing." << endl;
-        hndl.cleanup();
-        return;
-    }
-
-    if((err=hndl.serve_client()) != cli_err::NONE) {
-        cerr << "Error serving client request." << endl;
-        hndl.cleanup();
-        return;
-    }
-
-    hndl.cleanup();
-}
 
 cli_err ClientHandler::serve_client(void) {
     if (request_line.size() < 3) {
@@ -88,8 +57,6 @@ cli_err ClientHandler::serve_client(void) {
 void ClientHandler::redirect(string target) {
     char buf[MAXLINE];
 
-    lock_guard<mutex> lock(*ssl_mutex);
-
     sprintf(buf, "HTTP/1.1 302 Found\r\n"); 
     SSL_write(ssl, buf, strlen(buf));
 
@@ -117,7 +84,6 @@ void ClientHandler::serve_static(string filename) {
     pbuf->sgetn (file_buf,file_size);
     ifs.close();
 
-    lock_guard<mutex> lock(*ssl_mutex);
     /* Send response headers to client */
     get_filetype((char*)filename.c_str(), filetype);    //line:netp:servestatic:getfiletype
     sprintf(buf, "HTTP/1.0 200 OK\r\n"); //line:netp:servestatic:beginserve
@@ -137,9 +103,7 @@ void ClientHandler::serve_static(string filename) {
 cli_err ClientHandler::parse_request() {
     char *raw_req = new char[MAX_FILESIZE];
 
-    ssl_mutex->lock();
     int bytes_read = SSL_read(ssl, raw_req, MAX_FILESIZE);
-    ssl_mutex->unlock();
 
     if (bytes_read <= 0) {
         int ssl_error = SSL_get_error(ssl, bytes_read);
@@ -164,6 +128,7 @@ cli_err ClientHandler::parse_request() {
     }
 
     string req_str(raw_req);
+    delete[] raw_req;
 
     vector<string> request_lines = splitline(req_str, '\r');
 
@@ -198,7 +163,6 @@ cli_err ClientHandler::parse_request() {
 }
 
 cli_err ClientHandler::cleanup() {
-    lock_guard<mutex> lock(*ssl_mutex);
     if (SSL_shutdown(ssl) < 0) {
         cerr << "Error shutting down SSL: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
         SSL_free(ssl);
@@ -209,17 +173,4 @@ cli_err ClientHandler::cleanup() {
     SSL_free(ssl);
     Close(connfd);
     return cli_err::NONE;
-}
-
-ostream &operator<<(ostream &os, ClientHandler &cli) {
-
-    string method = cli.request_line[0];
-    string uri = cli.request_line[1];
-    string protocol = cli.request_line[2];
-
-    cout << "method = [" << method << "]" << endl
-         << "uri = [" << uri << "]" << endl
-         << "protocol = [" << protocol << "]" << endl;
-
-    return os;
 }

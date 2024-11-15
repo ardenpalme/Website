@@ -32,8 +32,7 @@ enum class cli_err {
 
 class ClientHandler {
 public:
-    ClientHandler(int _connfd, SSL *_ssl, shared_ptr<mutex> _ssl_mutex) : 
-        connfd{_connfd}, ssl{_ssl}, ssl_mutex{_ssl_mutex} {}
+    ClientHandler(int _connfd, SSL *_ssl) : connfd{_connfd}, ssl{_ssl} {}
 
     cli_err cleanup(void);
 
@@ -41,15 +40,12 @@ public:
 
     cli_err serve_client(void);
 
-    friend ostream &operator<<(ostream &os, ClientHandler &cli);
-
 private:
     int connfd;
     rio_t rio;
     SSL *ssl;
     vector<string> request_line;
     map<string,string> request_hdrs;
-    shared_ptr<mutex> ssl_mutex;
 
     void send_resp_hdr(string request_target, size_t file_size);
 
@@ -57,8 +53,6 @@ private:
 
     void redirect(string target);
 };
-
-void handle_client(ClientHandler &client);
 
 
 #endif /* __CLIENT_HPP__ */
