@@ -11,8 +11,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     gnupg2 \
     cmake \ 
-    libssl-dev \
-    git
+    libssl-dev
 
 # Add GCC repository and install GCC 13.2.0
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
@@ -26,7 +25,7 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 && \
 # Copy the contents of the local repository to /ubuntu/home in the image
 COPY . /home/ubuntu
 
-EXPOSE 8000
+EXPOSE 443
 
 # Set working directory
 WORKDIR /home/ubuntu/

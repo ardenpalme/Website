@@ -49,7 +49,7 @@ public:
 
     cli_err parse_request(void);
 
-    cli_err serve_client(shared_ptr<Cache> cache);
+    cli_err serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
 
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
@@ -65,7 +65,7 @@ private:
 
     void serve_static(string request_target);
 
-    void serve_static_compress(string request_target, shared_ptr<Cache> cache);
+    void serve_static_compress(string request_target, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
 
     void redirect(string target);
 };

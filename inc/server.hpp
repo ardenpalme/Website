@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 #include <memory>
+#include <tuple>
 
 #include <unistd.h>
 #include <string.h>
@@ -22,7 +23,7 @@ public:
         init_openssl();
         ctx = create_context();
         configure_context(ctx);
-        cache = make_shared<Cache>();
+        cache = make_shared<Cache<tuple<char*, size_t, time_t>>>();
     }
 
     SSL *make_ssl(void) {
@@ -30,14 +31,14 @@ public:
         return ssl;
     }
 
-    shared_ptr<Cache> get_cache(void) {
+    shared_ptr<Cache<tuple<char*, size_t, time_t>>> get_cache(void) {
         return cache;
     }
 
 private:
     int port;
     SSL_CTX *ctx;
-    shared_ptr<Cache> cache;
+    shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache;
 
     void init_openssl();
 

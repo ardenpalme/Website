@@ -3,7 +3,9 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <tuple>
 
+#include <time.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -23,7 +25,7 @@ const string srv_hostname = "ardenpalme.com";
 const string srv_static_ip = "54.177.178.124";
 const string dashboard_port = "8050";
 
-cli_err ClientHandler::serve_client(shared_ptr<Cache> cache) {
+cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
     if (request_line.size() < 3) {
         cerr << "Invalid request line format." << endl;
         return cli_err::SERVE_ERROR;
@@ -99,16 +101,44 @@ void ClientHandler::serve_static(string filename) {
     delete[] file_buf;
 }
 
-void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache> cache) {
+void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
+    int ret, fd;
+    time_t file_modified_time;
+    struct stat sb;
     char filetype[MAXLINE], buf[MAXLINE];
-    pair<char*, size_t> zipped_data;
+    tuple<char*, size_t, time_t> zipped_data;
+    pair<char*, size_t> compressed_file;
+
+    if((fd=open(filename.c_str(), O_RDONLY)) == -1) {
+        cerr << "Error opening " << filename << endl;
+        return;
+    }
+
+    if((ret=fstat(fd, &sb)) == -1){
+        cerr << "fstat() error for " << filename << endl;
+        close(fd);
+        return;
+    }
+    file_modified_time = sb.st_mtime;
+    close(fd);
 
     auto query_result = cache->get_cached_page(filename);
-    if(query_result.second == 0) {
-        zipped_data = deflate_file(filename, Z_DEFAULT_COMPRESSION);
+    if(get<0>(query_result) == nullptr) {
+        compressed_file = deflate_file(filename, Z_DEFAULT_COMPRESSION);
+        zipped_data = tuple(compressed_file.first, compressed_file.second, file_modified_time);
         cache->set_cached_page({filename, zipped_data});
+
     }else{
-        zipped_data = query_result;
+        double diff_sec = difftime(file_modified_time, get<2>(query_result));
+        
+        // file was modified - cached version no longer up-to-date
+        if(diff_sec > 0) {
+            compressed_file = deflate_file(filename, Z_DEFAULT_COMPRESSION);
+            zipped_data = tuple(compressed_file.first, compressed_file.second, file_modified_time);
+            cache->set_cached_page({filename, zipped_data});
+        }else{
+            zipped_data = query_result;
+        }
     }
 
 
@@ -122,13 +152,14 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache> cac
     sprintf(buf, "Content-Encoding: deflate\r\n");
     SSL_write(ssl, buf, strlen(buf));
 
-    sprintf(buf, "Content-length: %lu\r\n", zipped_data.second);
+    sprintf(buf, "Content-length: %lu\r\n", get<1>(zipped_data));
     SSL_write(ssl, buf, strlen(buf));
 
     sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
     SSL_write(ssl, buf, strlen(buf));
 
-    SSL_write(ssl, zipped_data.first, zipped_data.second);
+    SSL_write(ssl, static_cast<const void*>(get<0>(zipped_data)), static_cast<int>(get<1>(zipped_data)));
+
 }
 
 cli_err ClientHandler::parse_request() {

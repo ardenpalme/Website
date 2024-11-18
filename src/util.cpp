@@ -5,13 +5,13 @@
 #include<stdio.h>
 #include<unistd.h>
 #include<assert.h>
+#include<time.h>
 
 #include "util.hpp"
 
 #define CHUNK_SZ 16384
 
 using namespace std;
-
 
 void get_filetype(char *filename, char *filetype) {
     if (strstr(filename, ".html"))

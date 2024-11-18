@@ -15,7 +15,7 @@
 #include "client.hpp"
 #include "server.hpp"
 
-void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache> cache);
+void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache);
 
 int main(int argc, char *argv[]) {
     int listenfd, ret;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache> cache) {
+void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) {
     cli_err err;
     err = cli_hndl->parse_request();
     while(err == cli_err::RETRY) {

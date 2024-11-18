@@ -1,8 +1,7 @@
 /etc/systemd/system/web_server.service
 [Unit]
 Description=Web Server Service
-After=network.target dashboard.service
-Requires=dashboard.service
+After=network.target 
 
 [Service]
 ExecStart=/home/ubuntu/Web-Server/bin/web_server
@@ -11,30 +10,3 @@ Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-
-
-/etc/systemd/system/dashboard.service
-[Unit]
-Description=Dashboard Service
-After=network.target
-
-[Service]
-ExecStart=/home/ubuntu/Web-Server/venv/bin/python3 /home/ubuntu/Web-Server/web_app/dashboard.py
-WorkingDirectory=/home/ubuntu/Web-Server/
-EnvironmentFile=/home/ubuntu/Web-Server/.env
-Environment="PATH=/home/ubuntu/Web-Server/venv/bin"
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-
-
-sudo systemctl daemon_reload
-sudo systemctl enable dashboard.service
-sudo systemctl enable web_server.service
-
-sudo systemctl restart dashboard.service
-sudo systemctl restart web_server.service
-
-journalctl -u dashboard.service -f
-journalctl -u web_server.service -f
