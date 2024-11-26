@@ -2,7 +2,7 @@ build
 CMakeFiles
 CMakeCache.txt
 .vscode
-data
+assets
 bin
 .env
 .DS_Store
