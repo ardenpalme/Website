@@ -17,15 +17,14 @@
 #include "util.hpp"
 
 #define MAX_NUM_HEADERS 120
-#define MAX_FILESIZE (10 * 1024)
+#define MAX_FILESIZE (300000)
+#define MIN_RESP_SZ 5
 
 using namespace std;
 
-const string srv_hostname = "ardenpalme.com";
-const string srv_static_ip = "54.177.178.124";
-const string dashboard_port = "8050";
-
 cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
+    cli_err err_code = cli_err::NONE;
+
     if (request_line.size() < 3) {
         cerr << "Invalid request line format." << endl;
         return cli_err::SERVE_ERROR;
@@ -35,41 +34,120 @@ cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t
     string uri = request_line[1];
     string protocol = request_line[2];
 
+    string dashboard_prefix = "/dashboard/";
+
     if(method == "GET") {
-        if(uri == "/dashboard") { 
-            string redirect_url = "https://" + srv_hostname + ":" + dashboard_port;
-            redirect(redirect_url);
+        cout << uri << endl;
+        if(uri.find(dashboard_prefix) != string::npos) {
+            cout << "retrieve " <<  uri << " from localhost:8050\n";
+            err_code = retrieve_local("localhost", "8050");
+
         }else{
             if(uri == "/") {
                 uri = "index.html";
             }else{ 
                 uri = uri.substr(1);
             }
-            uri.insert(0, "data/");
+            uri.insert(0, "assets/");
             serve_static_compress(uri, cache);
         }
     } else {
         cerr << "Unsupported HTTP method: " << method << endl;
+        err_code = cli_err::SERVE_ERROR;
+    }
+    return err_code;
+}
+
+cli_err ClientHandler::retrieve_local(string host, string port) {
+    char buf[MAXLINE];
+    int clientfd;
+    char *raw_resp = new char[MAX_FILESIZE];
+    rio_t rio;
+
+    clientfd = Open_clientfd((char*)host.c_str(), (char*)port.c_str());
+    cout << "Connected to " << host << ":" << port << " ..." << endl;
+
+    string first_req_line;
+    for(auto ele : request_line) first_req_line = first_req_line + " " + ele;
+
+    cout << first_req_line << endl;
+    sprintf(buf, "%s\r\n", first_req_line.c_str());
+    Rio_writen(clientfd, buf, strlen(buf));
+
+    for(auto hdr : request_hdrs) {
+        if(hdr.first.find("Host") != string::npos) {
+            sprintf(buf, "Host: %s:%s\r\n", host.c_str(), port.c_str());
+            Rio_writen(clientfd, buf, strlen(buf));
+            cout << " " << buf << endl;
+
+        }else{
+            sprintf(buf, "%s: %s\r\n", hdr.first.c_str(), hdr.second.c_str());
+            Rio_writen(clientfd, buf, strlen(buf));
+            cout << "[" << hdr.first << ": " << hdr.second << "]" << endl;
+        }
+    }
+
+    cout << endl;
+    sprintf(buf, "\r\n");
+    Rio_writen(clientfd, buf, strlen(buf));
+
+
+    int bytes_read = Rio_readn(clientfd, raw_resp, MAX_FILESIZE);
+    cout << "read " << bytes_read << " bytes from " << host << ":" << port << endl;
+
+    vector<string> resp_hdrs;
+
+    int line_start_idx = 0;
+    for(int i=0; i<bytes_read; i++) {
+        if(raw_resp[i] == '\r') {
+            string hdr(&raw_resp[line_start_idx], (i-line_start_idx));
+            if(hdr.length() >= MIN_RESP_SZ) { // detects CRLF
+                resp_hdrs.push_back(hdr);
+            }else{
+                line_start_idx+=2; 
+                break;
+            }
+            line_start_idx = i+2;
+        }
+    }
+
+    int resp_payload_idx = line_start_idx;
+
+    if(resp_hdrs[0].find("200 OK") == string::npos) {
+        cerr << "Internal Resource Response Invalid\n";
+        for(auto hdr : resp_hdrs) cout << "[" << hdr << "]" << endl;
+
+        delete [] raw_resp;
         return cli_err::SERVE_ERROR;
     }
+
+    for(auto hdr : resp_hdrs) {
+        if(hdr.find("Server:") != string::npos){
+            sprintf(buf, "Server: Web Server\r\n");
+            SSL_write(ssl, buf, strlen(buf));
+
+            cout << " " << buf << endl;
+        }else{
+            sprintf(buf, "%s\r\n", hdr.c_str());
+            SSL_write(ssl, buf, strlen(buf));
+
+            cout << "[" << hdr << "]" << endl;
+        }
+    }
+
+    cout << endl;
+    sprintf(buf, "\r\n");
+    SSL_write(ssl, buf, strlen(buf));
+
+    cout << "payload sz: " << bytes_read - resp_payload_idx << endl;
+    SSL_write(ssl, &raw_resp[resp_payload_idx], bytes_read - resp_payload_idx);
+
+    delete [] raw_resp;
     return cli_err::NONE;
 }
 
-void ClientHandler::redirect(string target) {
-    char buf[MAXLINE];
-
-    sprintf(buf, "HTTP/1.1 302 Found\r\n"); 
-    SSL_write(ssl, buf, strlen(buf));
-
-    sprintf(buf, "Location: %s\r\n\r\n", target.c_str());
-    SSL_write(ssl, buf, strlen(buf));
-
-    sprintf(buf, "Connection: close\r\n\r\n");
-    SSL_write(ssl, buf, strlen(buf));
-}
-
 void ClientHandler::serve_static(string filename) {
-    char filetype[MAXLINE], buf[MAXLINE];
+    char filetype[MAXLINE/2], buf[MAXLINE];
 
     ifstream ifs(filename, std::ifstream::binary);
     if(!ifs) {
@@ -89,7 +167,7 @@ void ClientHandler::serve_static(string filename) {
     get_filetype((char*)filename.c_str(), filetype);    //line:netp:servestatic:getfiletype
     sprintf(buf, "HTTP/1.0 200 OK\r\n"); //line:netp:servestatic:beginserve
     SSL_write(ssl, buf, strlen(buf));
-    sprintf(buf, "Server: Tiny Web Server\r\n");
+    sprintf(buf, "Server: Web Server\r\n");
     SSL_write(ssl, buf, strlen(buf));
     sprintf(buf, "Content-length: %lu\r\n", file_size);
     SSL_write(ssl, buf, strlen(buf));
@@ -105,7 +183,7 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
     int ret, fd;
     time_t file_modified_time;
     struct stat sb;
-    char filetype[MAXLINE], buf[MAXLINE];
+    char filetype[MAXLINE/2], buf[MAXLINE];
     tuple<char*, size_t, time_t> zipped_data;
     pair<char*, size_t> compressed_file;
 
@@ -146,16 +224,16 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
     sprintf(buf, "HTTP/1.0 200 OK\r\n"); 
     SSL_write(ssl, buf, strlen(buf));
 
-    sprintf(buf, "Server: Tiny Web Server\r\n");
+    sprintf(buf, "Server: Web Server\r\n");
     SSL_write(ssl, buf, strlen(buf));
 
     sprintf(buf, "Content-Encoding: deflate\r\n");
     SSL_write(ssl, buf, strlen(buf));
 
-    sprintf(buf, "Content-length: %lu\r\n", get<1>(zipped_data));
+    sprintf(buf, "Content-Length: %lu\r\n", get<1>(zipped_data));
     SSL_write(ssl, buf, strlen(buf));
 
-    sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
+    sprintf(buf, "Content-Type: %s\r\n\r\n", filetype);
     SSL_write(ssl, buf, strlen(buf));
 
     SSL_write(ssl, static_cast<const void*>(get<0>(zipped_data)), static_cast<int>(get<1>(zipped_data)));

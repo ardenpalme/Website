@@ -28,6 +28,8 @@ enum class cli_err {
     PARSE_ERROR,
     SERVE_ERROR,
     CLEANUP_ERROR,
+    CONN_ERROR,
+    ADDR_ERROR,
     NONE
 };
 
@@ -50,6 +52,8 @@ public:
     cli_err parse_request(void);
 
     cli_err serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
+
+    cli_err retrieve_local(string host, string port);
 
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
