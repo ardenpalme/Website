@@ -209,7 +209,4 @@ if __name__ == '__main__':
     dataset = generate_dataset(start_date, tickers)
     app = create_app(func_ptrs, dataset, tickers)
 
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-    ssl_context.load_cert_chain(certfile="/etc/ssl/certs/www_ardenpalme_com.pem", keyfile="/etc/ssl/private/custom.key")
-    app.run_server(host='0.0.0.0', port=8050, ssl_context=ssl_context) 
-    #<iframe src="/dashboard" width="100%" height="800px" frameborder="0"></iframe>
+    app.run_server(host='0.0.0.0', port=8050, debug=True)
