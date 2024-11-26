@@ -121,11 +121,11 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
     }
 
     cout << "uncompressed size: " << bytes_read - resp_payload_idx << " bytes" << endl;
-    //auto compressed_obj = deflate_object(&raw_resp[resp_payload_idx], 
-      //                                   bytes_read - resp_payload_idx, 
-       //                                  Z_DEFAULT_COMPRESSION);
-    char *payload = &raw_resp[resp_payload_idx]; //compressed_obj.first;
-    size_t payload_sz = bytes_read - resp_payload_idx; //compressed_obj.second;
+    auto compressed_obj = deflate_object(&raw_resp[resp_payload_idx], 
+                                        bytes_read - resp_payload_idx, 
+                                        Z_DEFAULT_COMPRESSION);
+    char *payload = compressed_obj.first;
+    size_t payload_sz = compressed_obj.second;
     cout << "payload size: " << payload_sz << " bytes" << endl;
 
     for(auto hdr : resp_hdrs) {
@@ -139,9 +139,9 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
             SSL_write(ssl, buf, strlen(buf));
             cout << " " << buf << endl;
 
-            //sprintf(buf, "Content-Encoding: deflate\r\n");
-            //SSL_write(ssl, buf, strlen(buf));
-            //cout << " " << buf << endl;
+            sprintf(buf, "Content-Encoding: deflate\r\n");
+            SSL_write(ssl, buf, strlen(buf));
+            cout << " " << buf << endl;
 
         }else{
             sprintf(buf, "%s\r\n", hdr.c_str());
