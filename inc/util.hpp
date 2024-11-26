@@ -31,6 +31,7 @@ vector<string> splitline(string line, char delim);
 
 pair<char *, size_t> deflate_file(string filename, int compression_level);
 
+pair<char*, size_t> deflate_object(char *obj, size_t obj_size, int compression_level);
 
 template<typename T>
 T Cache<T>::get_cached_page(string filename) {

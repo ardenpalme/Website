@@ -17,7 +17,7 @@
 #include "util.hpp"
 
 #define MAX_NUM_HEADERS 120
-#define MAX_FILESIZE (300000)
+#define MAX_FILESIZE (8000000)
 #define MIN_RESP_SZ 5
 
 using namespace std;
@@ -91,7 +91,6 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
     sprintf(buf, "\r\n");
     Rio_writen(clientfd, buf, strlen(buf));
 
-
     int bytes_read = Rio_readn(clientfd, raw_resp, MAX_FILESIZE);
     cout << "read " << bytes_read << " bytes from " << host << ":" << port << endl;
 
@@ -121,26 +120,42 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
         return cli_err::SERVE_ERROR;
     }
 
+    cout << "uncompressed size: " << bytes_read - resp_payload_idx << " bytes" << endl;
+    //auto compressed_obj = deflate_object(&raw_resp[resp_payload_idx], 
+      //                                   bytes_read - resp_payload_idx, 
+       //                                  Z_DEFAULT_COMPRESSION);
+    char *payload = &raw_resp[resp_payload_idx]; //compressed_obj.first;
+    size_t payload_sz = bytes_read - resp_payload_idx; //compressed_obj.second;
+    cout << "payload size: " << payload_sz << " bytes" << endl;
+
     for(auto hdr : resp_hdrs) {
         if(hdr.find("Server:") != string::npos){
             sprintf(buf, "Server: Web Server\r\n");
             SSL_write(ssl, buf, strlen(buf));
-
             cout << " " << buf << endl;
+
+        }else if(hdr.find("Content-Length") != string::npos){
+            sprintf(buf, "Content-Length: %lu\r\n", payload_sz);
+            SSL_write(ssl, buf, strlen(buf));
+            cout << " " << buf << endl;
+
+            //sprintf(buf, "Content-Encoding: deflate\r\n");
+            //SSL_write(ssl, buf, strlen(buf));
+            //cout << " " << buf << endl;
+
         }else{
             sprintf(buf, "%s\r\n", hdr.c_str());
             SSL_write(ssl, buf, strlen(buf));
-
             cout << "[" << hdr << "]" << endl;
         }
     }
 
+    // HTTP Response header termination CRLF
     cout << endl;
     sprintf(buf, "\r\n");
     SSL_write(ssl, buf, strlen(buf));
 
-    cout << "payload sz: " << bytes_read - resp_payload_idx << endl;
-    SSL_write(ssl, &raw_resp[resp_payload_idx], bytes_read - resp_payload_idx);
+    SSL_write(ssl, payload, static_cast<int>(payload_sz));
 
     delete [] raw_resp;
     return cli_err::NONE;
