@@ -143,7 +143,7 @@ pair<char*, size_t> deflate_object(char *obj, size_t obj_size, int compression_l
         }
         //cout << "chunk_sz: " << chunk_sz << endl;
 
-        memcpy(in_buf, obj, chunk_sz);
+        memcpy(in_buf, obj+bytes_processed, chunk_sz);
 
         strm.avail_in = chunk_sz;
         strm.next_in = in_buf;
