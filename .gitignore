@@ -7,4 +7,3 @@ bin
 .env
 .DS_Store
 venv
-web_app/__pycache__
