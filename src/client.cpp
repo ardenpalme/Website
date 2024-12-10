@@ -37,9 +37,9 @@ cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t
     string dashboard_prefix = "/dashboard/";
 
     if(method == "GET") {
-        cout << uri << endl;
+        //cout << uri << endl;
         if(uri.find(dashboard_prefix) != string::npos) {
-            cout << "retrieve " <<  uri << " from localhost:8050\n";
+            //cout << "retrieve " <<  uri << " from localhost:8050\n";
             err_code = retrieve_local("localhost", "8050");
 
         }else{
@@ -65,12 +65,12 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
     rio_t rio;
 
     clientfd = Open_clientfd((char*)host.c_str(), (char*)port.c_str());
-    cout << "Connected to " << host << ":" << port << " ..." << endl;
+    //cout << "Connected to " << host << ":" << port << " ..." << endl;
 
     string first_req_line;
     for(auto ele : request_line) first_req_line = first_req_line + " " + ele;
 
-    cout << first_req_line << endl;
+    //cout << first_req_line << endl;
     sprintf(buf, "%s\r\n", first_req_line.c_str());
     Rio_writen(clientfd, buf, strlen(buf));
 
@@ -78,21 +78,21 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
         if(hdr.first.find("Host") != string::npos) {
             sprintf(buf, "Host: %s:%s\r\n", host.c_str(), port.c_str());
             Rio_writen(clientfd, buf, strlen(buf));
-            cout << " " << buf << endl;
+            //cout << " " << buf << endl;
 
         }else{
             sprintf(buf, "%s: %s\r\n", hdr.first.c_str(), hdr.second.c_str());
             Rio_writen(clientfd, buf, strlen(buf));
-            cout << "[" << hdr.first << ": " << hdr.second << "]" << endl;
+            //cout << "[" << hdr.first << ": " << hdr.second << "]" << endl;
         }
     }
 
-    cout << endl;
+    //cout << endl;
     sprintf(buf, "\r\n");
     Rio_writen(clientfd, buf, strlen(buf));
 
     int bytes_read = Rio_readn(clientfd, raw_resp, MAX_FILESIZE);
-    cout << "read " << bytes_read << " bytes from " << host << ":" << port << endl;
+    //cout << "read " << bytes_read << " bytes from " << host << ":" << port << endl;
 
     vector<string> resp_hdrs;
 
@@ -112,7 +112,30 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
 
     int resp_payload_idx = line_start_idx;
 
-    if(resp_hdrs[0].find("200 OK") == string::npos) {
+    if(resp_hdrs[0].find("304") != string::npos) {
+        cout << "HERE\n";
+
+        for(auto hdr : resp_hdrs) {
+            if(hdr.find("Server:") != string::npos){
+                sprintf(buf, "Server: Web Server\r\n");
+                SSL_write(ssl, buf, strlen(buf));
+                cout << " " << buf << endl;
+
+            }else{
+                sprintf(buf, "%s\r\n", hdr.c_str());
+                SSL_write(ssl, buf, strlen(buf));
+                cout << "[" << hdr << "]" << endl;
+            }
+        }
+
+        sprintf(buf, "\r\n");
+        SSL_write(ssl, buf, strlen(buf));
+
+        delete [] raw_resp;
+        return cli_err::NONE;
+    }
+
+    if(resp_hdrs[0].find("200") == string::npos) {
         cerr << "Internal Resource Response Invalid\n";
         for(auto hdr : resp_hdrs) cout << "[" << hdr << "]" << endl;
 
@@ -120,38 +143,38 @@ cli_err ClientHandler::retrieve_local(string host, string port) {
         return cli_err::SERVE_ERROR;
     }
 
-    cout << "uncompressed size: " << bytes_read - resp_payload_idx << " bytes" << endl;
+    //cout << "uncompressed size: " << bytes_read - resp_payload_idx << " bytes" << endl;
     auto compressed_obj = deflate_object(&raw_resp[resp_payload_idx], 
                                         bytes_read - resp_payload_idx, 
                                         Z_DEFAULT_COMPRESSION);
     char *payload = compressed_obj.first;
     size_t payload_sz = compressed_obj.second;
-    cout << "payload size: " << payload_sz << " bytes" << endl;
+    //cout << "payload size: " << payload_sz << " bytes" << endl;
 
     for(auto hdr : resp_hdrs) {
         if(hdr.find("Server:") != string::npos){
             sprintf(buf, "Server: Web Server\r\n");
             SSL_write(ssl, buf, strlen(buf));
-            cout << " " << buf << endl;
+            //cout << " " << buf << endl;
 
         }else if(hdr.find("Content-Length") != string::npos){
             sprintf(buf, "Content-Length: %lu\r\n", payload_sz);
             SSL_write(ssl, buf, strlen(buf));
-            cout << " " << buf << endl;
+            //cout << " " << buf << endl;
 
             sprintf(buf, "Content-Encoding: deflate\r\n");
             SSL_write(ssl, buf, strlen(buf));
-            cout << " " << buf << endl;
+            //cout << " " << buf << endl;
 
         }else{
             sprintf(buf, "%s\r\n", hdr.c_str());
             SSL_write(ssl, buf, strlen(buf));
-            cout << "[" << hdr << "]" << endl;
+            //cout << "[" << hdr << "]" << endl;
         }
     }
 
     // HTTP Response header termination CRLF
-    cout << endl;
+    //cout << endl;
     sprintf(buf, "\r\n");
     SSL_write(ssl, buf, strlen(buf));
 

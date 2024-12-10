@@ -7,3 +7,5 @@ bin
 .env
 .DS_Store
 venv
+web_app/__pycache__
+web_app/*.h5
