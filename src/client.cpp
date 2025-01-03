@@ -202,8 +202,8 @@ void ClientHandler::serve_static(string filename) {
     ifs.close();
 
     /* Send response headers to client */
-    get_filetype((char*)filename.c_str(), filetype);    //line:netp:servestatic:getfiletype
-    sprintf(buf, "HTTP/1.0 200 OK\r\n"); //line:netp:servestatic:beginserve
+    get_filetype((char*)filename.c_str(), filetype);    
+    sprintf(buf, "HTTP/1.0 200 OK\r\n"); 
     SSL_write(ssl, buf, strlen(buf));
     sprintf(buf, "Server: Web Server\r\n");
     SSL_write(ssl, buf, strlen(buf));
@@ -235,6 +235,41 @@ void ClientHandler::redirect_cli() {
 
     sprintf(buf, "Connection: close\r\n\r\n");
     Rio_writen(connfd, buf, strlen(buf));
+}
+
+void ClientHandler::redirect_cli_404() {
+    string filename = "assets/404.html";
+    char filetype[MAXLINE/2], buf[MAXLINE];
+
+    ifstream ifs(filename, std::ifstream::binary);
+    if(!ifs) {
+        cerr << filename << " non found." << endl;
+        return;
+    }
+
+    std::filebuf* pbuf = ifs.rdbuf();
+    std::size_t file_size = pbuf->pubseekoff (0,ifs.end,ifs.in);
+    pbuf->pubseekpos (0,ifs.in);
+
+    char* file_buf=new char[file_size];
+    pbuf->sgetn (file_buf,file_size);
+    ifs.close();
+
+    get_filetype((char*)filename.c_str(), filetype);    
+    sprintf(buf, "HTTP/1.1 404 Not Found\r\n"); 
+    SSL_write(ssl, buf, strlen(buf));
+    sprintf(buf, "Server: Web Server\r\n");
+    SSL_write(ssl, buf, strlen(buf));
+    sprintf(buf, "Content-type: %s\r\n", filetype);
+    SSL_write(ssl, buf, strlen(buf));
+    sprintf(buf, "Content-length: %lu\r\n", file_size);
+    SSL_write(ssl, buf, strlen(buf));
+    sprintf(buf, "Connection: close\r\n\r\n");
+    SSL_write(ssl, buf, strlen(buf));
+
+    SSL_write(ssl, file_buf, file_size);
+
+    delete[] file_buf;
 }
 
 cli_err ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {

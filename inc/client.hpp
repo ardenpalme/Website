@@ -58,6 +58,8 @@ public:
 
     void redirect_cli();
 
+    void redirect_cli_404();
+
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
 private:

@@ -152,9 +152,13 @@ void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<ch
     }
 
     if((err=cli_hndl->serve_client(cache)) != cli_err::NONE) {
-        cerr << "Error serving client request." << endl;
-        cli_hndl->cleanup();
-        return;
+        if(err == cli_err::NO_FILE_ERROR) {
+            cli_hndl->redirect_cli_404();
+        }else{
+            cerr << "Error serving client request." << endl;
+            cli_hndl->cleanup();
+            return;
+        }
     }
 
     cli_hndl->cleanup();
