@@ -129,3 +129,4 @@ class ADX(ADX):
         )
         
         return fig
+

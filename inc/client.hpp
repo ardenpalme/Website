@@ -30,6 +30,7 @@ enum class cli_err {
     CLEANUP_ERROR,
     CONN_ERROR,
     ADDR_ERROR,
+    NO_FILE_ERROR,
     NONE
 };
 
@@ -55,6 +56,8 @@ public:
 
     cli_err retrieve_local(string host, string port);
 
+    void redirect_cli();
+
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
 private:
@@ -69,7 +72,7 @@ private:
 
     void serve_static(string request_target);
 
-    void serve_static_compress(string request_target, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
+    cli_err serve_static_compress(string request_target, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
 
     void redirect(string target);
 };

@@ -49,7 +49,7 @@ cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t
                 uri = uri.substr(1);
             }
             uri.insert(0, "assets/");
-            serve_static_compress(uri, cache);
+            err_code = serve_static_compress(uri, cache);
         }
     } else {
         cerr << "Unsupported HTTP method: " << method << endl;
@@ -217,7 +217,27 @@ void ClientHandler::serve_static(string filename) {
     delete[] file_buf;
 }
 
-void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
+void ClientHandler::redirect_cli() {
+    rio_t rio;
+    char buf[MAXLINE];
+  
+    Rio_readinitb(&rio, connfd);
+    Rio_readlineb(&rio, buf, MAXLINE); 
+
+    sprintf(buf, "HTTP/1.0 301 Moved Permanently\r\n"); 
+    Rio_writen(connfd, buf, strlen(buf));
+
+    sprintf(buf, "Location: https://ardenpalme.com\r\n");
+    Rio_writen(connfd, buf, strlen(buf));
+
+    sprintf(buf, "Content-Length: 0\r\n");
+    Rio_writen(connfd, buf, strlen(buf));
+
+    sprintf(buf, "Connection: close\r\n\r\n");
+    Rio_writen(connfd, buf, strlen(buf));
+}
+
+cli_err ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
     int ret, fd;
     time_t file_modified_time;
     struct stat sb;
@@ -227,13 +247,13 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
 
     if((fd=open(filename.c_str(), O_RDONLY)) == -1) {
         cerr << "Error opening " << filename << endl;
-        return;
+        return cli_err::NO_FILE_ERROR;
     }
 
     if((ret=fstat(fd, &sb)) == -1){
         cerr << "fstat() error for " << filename << endl;
         close(fd);
-        return;
+        return cli_err::NO_FILE_ERROR;
     }
     file_modified_time = sb.st_mtime;
     close(fd);
@@ -257,7 +277,6 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
         }
     }
 
-
     get_filetype((char*)filename.c_str(), filetype);    
     sprintf(buf, "HTTP/1.0 200 OK\r\n"); 
     SSL_write(ssl, buf, strlen(buf));
@@ -276,6 +295,7 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
 
     SSL_write(ssl, static_cast<const void*>(get<0>(zipped_data)), static_cast<int>(get<1>(zipped_data)));
 
+    return cli_err::NONE;
 }
 
 cli_err ClientHandler::parse_request() {
@@ -339,14 +359,17 @@ cli_err ClientHandler::parse_request() {
 }
 
 cli_err ClientHandler::cleanup() {
-    if (SSL_shutdown(ssl) < 0) {
-        cerr << "Error shutting down SSL: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
+    if(ssl != NULL){
+        if (SSL_shutdown(ssl) < 0) {
+            cerr << "Error shutting down SSL: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
+            SSL_free(ssl);
+            Close(connfd);
+            return cli_err::CLEANUP_ERROR;
+        }
+
         SSL_free(ssl);
-        Close(connfd);
-        return cli_err::CLEANUP_ERROR;
     }
 
-    SSL_free(ssl);
     Close(connfd);
     return cli_err::NONE;
 }
