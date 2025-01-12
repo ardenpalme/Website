@@ -1,0 +1,11 @@
+services:
+  app:
+    build:
+      context: .
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - .:/home/ubuntu/website
+    working_dir: /home/ubuntu/website
+    tty: true
