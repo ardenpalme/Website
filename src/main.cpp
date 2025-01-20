@@ -2,7 +2,7 @@
 int main() {
     //Set HTTP listener address and port
     auto &app = drogon::app();
-    app.addListener("0.0.0.0", 80);
+    app.addListener("0.0.0.0", 443);
 
     //Load config file
     //drogon::app().loadConfigFile("../config.json");

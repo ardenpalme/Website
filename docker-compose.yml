@@ -9,3 +9,17 @@ services:
       - .:/home/ubuntu/website
     working_dir: /home/ubuntu/website
     tty: true
+    secrets:
+      - CA_Bundle
+      - diakhatepalme_com_key
+      - diakhatepalme_com_cert
+  
+secrets:
+  CA_Bundle:
+    file: /etc/pki/tls/private/My_CA_Bundle.ca-bundle
+
+  diakhatepalme_com_key:
+    file: /etc/pki/tls/private/diakhate_palme_com.key
+
+  diakhatepalme_com_cert:
+    file: /etc/pki/tls/private/diakhate_palme_com.crt
