@@ -1,14 +1,10 @@
 #include <drogon/drogon.h>
 int main() {
-    //Set HTTP listener address and port
     auto &app = drogon::app();
     app.addListener("0.0.0.0", 443);
 
-    //Load config file
-    //drogon::app().loadConfigFile("../config.json");
     app.loadConfigFile("/home/ubuntu/website/config.yaml");
 
-    //Run HTTP framework,the method will block in the internal event loop
     app.run();
     return 0;
 }
