@@ -2,24 +2,38 @@ services:
   app:
     build:
       context: .
+      args:
+        GITHUB_USERNAME: ardenpalme
+      secrets:
+        - github_token
+        - polygon_api_key
+    environment:
+      - TZ=UTC    
     ports:
+      - "8050:8050"
       - "80:80"
       - "443:443"
     volumes:
       - .:/home/ubuntu/website
     working_dir: /home/ubuntu/website
     tty: true
-    secrets:
-      - CA_Bundle
-      - diakhatepalme_com_key
-      - diakhatepalme_com_cert
-  
+#     secrets:
+#       - CA_Bundle
+#       - diakhatepalme_com_key
+#       - diakhatepalme_com_cert
+
 secrets:
-  CA_Bundle:
-    file: /etc/pki/tls/private/My_CA_Bundle.ca-bundle
+  github_token:
+    file: .github_token
 
-  diakhatepalme_com_key:
-    file: /etc/pki/tls/private/diakhate_palme_com.key
+  polygon_api_key:
+    file: .polygon_api_key
+  
+#   CA_Bundle:
+#     file: /etc/pki/tls/private/My_CA_Bundle.ca-bundle
 
-  diakhatepalme_com_cert:
-    file: /etc/pki/tls/private/diakhate_palme_com.crt
+#   diakhatepalme_com_key:
+#     file: /etc/pki/tls/private/diakhate_palme_com.key
+
+#   diakhatepalme_com_cert:
+#     file: /etc/pki/tls/private/diakhate_palme_com.crt
