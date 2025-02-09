@@ -486,6 +486,22 @@ int send_large_data(gnutls_session_t session, const char* data, size_t data_size
         }
     }
 
-    std::cout << "Total bytes sent: " << bytes_sent << std::endl;
+    //std::cout << "Total bytes sent: " << bytes_sent << std::endl;
     return 0;  // Success
+}
+
+void ClientHandler::redirect_cli() {
+    rio_t rio;
+    char buf[MAXLINE];
+  
+    Rio_readinitb(&rio, connfd);
+    Rio_readlineb(&rio, buf, MAXLINE); 
+    sprintf(buf, "HTTP/1.0 301 Moved Permanently\r\n"); 
+    Rio_writen(connfd, buf, strlen(buf));
+    sprintf(buf, "Location: https://diakhatepalme.com\r\n");
+    Rio_writen(connfd, buf, strlen(buf));
+    sprintf(buf, "Content-Length: 0\r\n");
+    Rio_writen(connfd, buf, strlen(buf));
+    sprintf(buf, "Connection: close\r\n\r\n");
+    Rio_writen(connfd, buf, strlen(buf));
 }

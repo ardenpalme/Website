@@ -19,7 +19,7 @@
 
 class ServerContext {
 public:
-    ServerContext(int _port) : port{_port} {
+    ServerContext(void) {
         gnutls_global_init();
         cache = make_shared<Cache<tuple<char*, size_t, time_t>>>();
     }

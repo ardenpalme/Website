@@ -55,6 +55,12 @@ public:
 
     cli_err retrieve_local(string host, string port);
 
+    void redirect_cli();
+
+    void close_socket() {
+        Close(connfd);
+    }
+
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
 private:
