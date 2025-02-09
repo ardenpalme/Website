@@ -5,13 +5,26 @@
 #include <iostream>
 #include <utility>
 
-using namespace std;
+enum class GenericError {
+    FATAL,
+    SOCKFD_READ_EOF,
+    INVALID_SOCKET_TYPE,
+    TLS_SEND,
+    SOCKFD_SEND,
+    TLS_CONNEX_CLOSE,
+    TLS_RETRY,
+    CLI_HTTP_METHOD,
+    CLI_INVALID_HEADER,
+    CLI_REQ_LINE_INVALID
+};
 
-string humanReadableSize(size_t bytes);
+std::string report_error(GenericError &err);
 
-vector<string> splitline(string line, char delim);
+std::string humanReadableSize(size_t bytes);
 
-pair<char *, size_t> deflate_file(string filename, int compression_level);
+std::vector<std::string> splitline(std::string line, char delim);
+
+std::pair<char *, size_t> deflate_file(std::string filename, int compression_level);
 
 /* CSAPP Functions - BEGIN */
 

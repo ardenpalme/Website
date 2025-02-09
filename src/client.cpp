@@ -4,6 +4,7 @@
 #include <thread>
 #include <mutex>
 #include <tuple>
+#include <format>
 
 #include <time.h>
 #include <string.h>
@@ -19,7 +20,7 @@
 
 #include "client.hpp"
 #include "util.hpp"
-#include "sockets.hpp"
+#include "connection.hpp"
 #include "cache.hpp"
 
 #define MAX_FILESIZE (1024 * 1024) /* 1MB */
@@ -27,15 +28,8 @@
 
 using namespace std;
 
-int send_large_data(gnutls_session_t session, const char* data, size_t data_size);
-
-cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
-    cli_err err_code = cli_err::NONE;
-
-    if (request_line.size() < 3) {
-        cerr << "Invalid request line format." << endl;
-        return cli_err::SERVE_ERROR;
-    }
+void ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
+    if (request_line.size() < 3) throw GenericError::CLI_REQ_LINE_INVALID;
 
     string method = request_line[0];
     string uri = request_line[1];
@@ -49,10 +43,8 @@ cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t
         uri.insert(0, "assets/");
         serve_static_compress(uri, cache);
     } else {
-        cerr << "Unsupported HTTP method: " << method << endl;
-        err_code = cli_err::SERVE_ERROR;
+        throw GenericError::CLI_HTTP_METHOD;
     }
-    return err_code;
 }
 
 void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
@@ -98,79 +90,26 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
     cache->check_updates();
 
     get_filetype((char*)filename.c_str(), filetype);    
-    sprintf(buf, "HTTP/1.0 200 OK\r\n"); 
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
+    connex_hndl.write_str("HTTP/1.0 200 OK\r\n"); 
+    connex_hndl.write_str("Server: Web Server\r\n"); 
+    connex_hndl.write_str("Content-Encoding: deflate\r\n"); 
+    connex_hndl.write_str(format("Content-Length: {}\r\n.", get<1>(zipped_data)));
+    connex_hndl.write_str(format("Content-Type: {}\r\n.", filetype));
+    connex_hndl.write_str("\r\n"); 
 
-    sprintf(buf, "Server: Web Server\r\n");
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Content-Encoding: deflate\r\n");
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Content-Length: %lu\r\n", get<1>(zipped_data));
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Content-Type: %s\r\n\r\n", filetype);
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    //SSL_write(ssl, static_cast<const void*>(get<0>(zipped_data)), static_cast<int>(get<1>(zipped_data)));
-    if((ret = send_large_data(session, 
-                get<0>(zipped_data), 
-                static_cast<int>(get<1>(zipped_data)))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
+    connex_hndl.write_data(get<0>(zipped_data), static_cast<int>(get<1>(zipped_data)));
 }
 
-cli_err ClientHandler::parse_request() {
-    char *raw_req = new char[MAX_FILESIZE];
+void ClientHandler::parse_request() {
+    size_t bytes_read;
+    char raw_req[MAX_FILESIZE];
 
-    // Read from the GnuTLS session
-    ssize_t bytes_read = gnutls_record_recv(session, raw_req, MAX_FILESIZE);
-
-    if (bytes_read <= 0) {
-        delete[] raw_req;
-
-        // Handle different GnuTLS error cases
-        switch (bytes_read) {
-            case 0:
-                std::cerr << "Client closed connection." << std::endl;
-                return cli_err::CLI_CLOSED_CONN;
-
-            case GNUTLS_E_AGAIN:
-            case GNUTLS_E_INTERRUPTED:
-                std::cerr << "GnuTLS read wants retry." << std::endl;
-                return cli_err::RETRY;
-
-            case GNUTLS_E_REHANDSHAKE:
-                std::cerr << "GnuTLS re-handshake request received, not supported." << std::endl;
-                return cli_err::FATAL;
-
-            default:
-                std::cerr << "GnuTLS read error: " << gnutls_strerror(bytes_read) << std::endl;
-                return cli_err::FATAL;
-        }
-    }
+    bytes_read = connex_hndl.read_data(raw_req, MAX_FILESIZE);
 
     std::string req_str(raw_req, bytes_read);  // Ensure the string is built with actual bytes read
-    delete[] raw_req;
-
     std::vector<std::string> request_lines = splitline(req_str, '\r');
 
-    if (request_lines.empty()) {
-        std::cerr << "Empty request received." << std::endl;
-        return cli_err::PARSE_ERROR;
-    }
+    if (request_lines.empty()) throw GenericError::CLI_REQ_LINE_INVALID;
 
     int line_ct = 0;
     for (auto &line : request_lines) {
@@ -182,8 +121,7 @@ cli_err ClientHandler::parse_request() {
             line = line.substr(1);  // Remove newline character at the beginning
             size_t sep_idx = line.find(':');
             if (sep_idx == std::string::npos || sep_idx == 0) {
-                std::cerr << "Malformed header: " << line << std::endl;
-                return cli_err::PARSE_ERROR;
+                throw GenericError::CLI_INVALID_HEADER;
             }
 
             request_hdrs.insert({
@@ -194,24 +132,6 @@ cli_err ClientHandler::parse_request() {
 
         line_ct++;
     }
-
-    return cli_err::NONE;
-}
-
-cli_err ClientHandler::cleanup() {
-    // Attempt to gracefully close the TLS session
-    int ret = gnutls_bye(session, GNUTLS_SHUT_RDWR);
-    if (ret < 0) {
-        std::cerr << "Error shutting down GnuTLS session: " << gnutls_strerror(ret) << std::endl;
-        gnutls_deinit(session);  // Free session resources even if shutdown fails
-        close(connfd);
-        return cli_err::CLEANUP_ERROR;
-    }
-
-    // Free GnuTLS session resources
-    gnutls_deinit(session);
-    close(connfd);
-    return cli_err::NONE;
 }
 
 void ClientHandler::redirect_cli_404() {
@@ -232,78 +152,30 @@ void ClientHandler::redirect_cli_404() {
     ifs.close();
     get_filetype((char*)filename.c_str(), filetype);    
 
-    sprintf(buf, "HTTP/1.1 404 Not Found\r\n"); 
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
+    connex_hndl.write_str("HTTP/1.1 404 Not Found\r\n");
+    connex_hndl.write_str("Server: Web Server\r\n");
+    connex_hndl.write_str(format("Content-Length: {}\r\n", file_size));
+    connex_hndl.write_str(format("Content-Type: {}\r\n", filetype));
+    connex_hndl.write_str("Connection: close\r\n");
+    connex_hndl.write_str("\r\n");
 
-    sprintf(buf, "Server: Web Server\r\n");
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Content-type: %s\r\n", filetype);
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Content-length: %lu\r\n", file_size);
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Connection: close\r\n\r\n");
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    //SSL_write(ssl, file_buf, file_size);
-    if((ret = send_large_data(session, file_buf, file_size)) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-    delete[] file_buf;
+    connex_hndl.write_data(file_buf, file_size);
 }
 
-int send_large_data(gnutls_session_t session, const char* data, size_t data_size) {
-    const size_t MAX_TLS_RECORD_SIZE = 16384;  // 16KB
-    size_t bytes_sent = 0;
-
-    while (bytes_sent < data_size) {
-        size_t chunk_size = std::min(MAX_TLS_RECORD_SIZE, data_size - bytes_sent);
-
-        int ret = gnutls_record_send(session, data + bytes_sent, chunk_size);
-        if (ret < 0) {
-            std::cerr << "GnuTLS send error: " << gnutls_strerror(ret) << std::endl;
-            return ret;
-        }
-
-        bytes_sent += ret;
-
-        if (ret == 0) {
-            std::cerr << "Connection closed unexpectedly." << std::endl;
-            break;
-        }
-    }
-
-    //std::cout << "Total bytes sent: " << bytes_sent << std::endl;
-    return 0;  // Success
-}
-
-void ClientHandler::redirect_cli() {
+void ClientHandler::redirect_cli() 
+{
     char buf[MAXLINE];
+    connex_hndl.read_data(buf, MAXLINE); // TODO CHECK read vs readline
 
-    SocketHandle sock_hndl(connfd);
-  
-    sock_hndl.readline(buf, MAXLINE);
-    sprintf(buf, "HTTP/1.0 301 Moved Permanently\r\n"); 
-    sock_hndl.write_data(buf, strlen(buf));
+    connex_hndl.write_str("HTTP/1.0 301 Moved Permanently\r\n"); 
+    connex_hndl.write_str("Location: https://ardendiak.com\r\n");
+    connex_hndl.write_str("Content-Length: 0\r\n");
+    connex_hndl.write_str("Connection: close\r\n");
+    connex_hndl.write_str("\r\n");
+}
 
-    sprintf(buf, "Location: https://ardendiak.com\r\n");
-    sock_hndl.write_data(buf, strlen(buf));
-
-    sprintf(buf, "Content-Length: 0\r\n");
-    sock_hndl.write_data(buf, strlen(buf));
-
-    sprintf(buf, "Connection: close\r\n\r\n");
-    sock_hndl.write_data(buf, strlen(buf));
+std::ostream& operator<<(std::ostream &os, const ClientHandler &cli)
+{
+    os << cli.hostname << ":" << cli.port << endl;
+    return os;
 }

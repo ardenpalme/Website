@@ -12,7 +12,7 @@
 #include <sys/epoll.h>
 #include <fcntl.h>
 
-#include "sockets.hpp"
+#include "connection.hpp"
 #include "util.hpp"
 #include "client.hpp"
 #include "server.hpp"
@@ -24,7 +24,8 @@
 void redirect_client(shared_ptr<ClientHandler> cli_hndl);
 void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache);
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) 
+{
     int ret;
     int listen_fd1, listen_fd2;
     int nfds, epoll_fd;
@@ -96,7 +97,9 @@ int main(int argc, char *argv[]) {
                     break;
                 }
 
-                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, session, cli_name, cli_port);
+                ConnectionHandler connex_hndl(session);
+
+                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port);
                 std::thread cli_thread(handle_client, cli_hndl_ptr, cache_ptr);
                 cli_thread.detach();
 
@@ -106,7 +109,9 @@ int main(int argc, char *argv[]) {
                 Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
                     100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
-                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, cli_name, cli_port);
+                ConnectionHandler connex_hndl(connfd);
+
+                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port);
                 std::thread cli_thread(redirect_client, cli_hndl_ptr);
                 cli_thread.detach();
             }
@@ -116,38 +121,42 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void redirect_client(shared_ptr<ClientHandler> cli_hndl) {
+void redirect_client(shared_ptr<ClientHandler> cli_hndl) 
+{
     cli_hndl->redirect_cli();
 }
 
-void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) {
-    cli_err err;
-    err = cli_hndl->parse_request();
-    while(err == cli_err::RETRY) {
-        err = cli_hndl->parse_request();
+void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) 
+{
+    bool parsing_hdrs = true;
+
+    do{
+        try {
+            cli_hndl->parse_request();
+            parsing_hdrs = false;
+
+        }catch(GenericError &err) {
+            switch(err) {
+                case GenericError::TLS_RETRY:
+                    cerr << "Retrying to parse HTTP request from " << *cli_hndl << endl;
+                    break;
+
+                case GenericError::TLS_CONNEX_CLOSE:
+                    cerr << "Client closed connection during request parsing." << endl;
+                    return;
+
+                default:
+                    cerr << "Error during request parsing." << endl;
+                    return;
+            }
+        }
+    }while(parsing_hdrs);
+
+
+    try {
+        cli_hndl->serve_client(cache);
+
+    }catch(GenericError &err) {
+        cerr << "Error serving " << *cli_hndl << " - " << report_error(err) << endl;
     }
-
-    if (err == cli_err::PARSE_ERROR) {
-        cerr << "Request parsing failed." << endl;
-        cli_hndl->cleanup();
-        return;
-
-    } else if (err == cli_err::CLI_CLOSED_CONN) {
-        cerr << "Client closed connection during request parsing." << endl;
-        cli_hndl->cleanup();
-        return;
-
-    } else if (err != cli_err::NONE) {
-        cerr << "Error during request parsing." << endl;
-        cli_hndl->cleanup();
-        return;
-    }
-
-    if((err=cli_hndl->serve_client(cache)) != cli_err::NONE) {
-        cerr << "Error serving client request." << endl;
-        cli_hndl->cleanup();
-        return;
-    }
-
-    cli_hndl->cleanup();
 }

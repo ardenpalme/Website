@@ -114,6 +114,39 @@ std::string humanReadableSize(size_t bytes) {
     return std::string(buffer);
 }
 
+std::string report_error(GenericError &err)
+{
+    switch(err) {
+        case GenericError::SOCKFD_READ_EOF:
+            return "Detected an EOF during a read";
+
+        case GenericError::INVALID_SOCKET_TYPE:
+            return "Invalid Socket Type";
+
+        case GenericError::TLS_SEND:
+            return "Failed to send record over TLS session";
+
+        case GenericError::SOCKFD_SEND:
+            return "Failed to write data to unix socket";
+
+        case GenericError::TLS_CONNEX_CLOSE:
+            return "TLS Connection Closed during Read";
+
+        case GenericError::TLS_RETRY:
+            return "Retrying TLS Read";
+
+        case GenericError::CLI_HTTP_METHOD:
+            return "Invalid HTTP Method";
+
+        case GenericError::CLI_INVALID_HEADER:
+        case GenericError::CLI_REQ_LINE_INVALID:
+            return "Invalid HTTP Request";
+
+        case GenericError::FATAL:
+        default:
+            return "Fatal Error";
+    }
+}
 
 /* CSAPP Functions - BEGIN */
 

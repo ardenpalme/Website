@@ -1,41 +1,69 @@
-#include "sockets.hpp"
+#include "connection.hpp"
 
-const static int LISTENQ  = 1024;
+const static size_t LISTENQ  = 1024;
+const static size_t MAX_TLS_RECORD_SIZE = 16384; 
 
-size_t SocketHandle::read_data(char *data, size_t num_req_bytes) 
+size_t ConnectionHandler::read_data(char *data, size_t num_req_bytes) 
 {
     int count = 0;
-    while(byte_count <= 0) {
-        byte_count = read(connfd, buf, sizeof(buf));
+    if(connex_type == ConnectionType::SOCKFD) {
+        while(byte_count <= 0) {
+            byte_count = read(connfd, buf, sizeof(buf));
 
-        if(byte_count < 0) {
-            throw SocketError::FATAL;
+            if(byte_count < 0) {
+                throw GenericError::FATAL;
 
-        }else if(byte_count == 0) {
-            throw SocketError::READ_EOF;
+            }else if(byte_count == 0) {
+                throw GenericError::SOCKFD_READ_EOF;
 
-        }else{
-            bufptr = buf; // reset buffer ptr
+            }else{
+                bufptr = buf; // reset buffer ptr
+            }
         }
+
+        /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
+        if(byte_count < num_req_bytes) count = byte_count;
+        else count = num_req_bytes;
+
+        memcpy(data, bufptr, count);
+        bufptr += count;
+        byte_count -= count;
+
+    }else if(connex_type == ConnectionType::TLS_SESSION) {
+        count = gnutls_record_recv(session, data, num_req_bytes);
+        if (count <= 0) {
+            switch (count) {
+                case 0:
+                    throw GenericError::TLS_CONNEX_CLOSE;
+
+                case GNUTLS_E_AGAIN:
+                case GNUTLS_E_INTERRUPTED:
+                    throw GenericError::TLS_RETRY;
+
+                /* TLS Re-negotiation unsupported */
+                case GNUTLS_E_REHANDSHAKE: 
+                default:
+                    throw GenericError::FATAL;
+            }
+        }
+
+    }else{
+        throw GenericError::INVALID_SOCKET_TYPE;
     }
-
-    /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
-    if(byte_count < num_req_bytes) count = byte_count;
-    else count = num_req_bytes;
-
-    memcpy(data, bufptr, count);
-    bufptr += count;
-    byte_count -= count;
 
     return count;
 }
 
-int SocketHandle::readline(char *data, size_t bytes)
+int ConnectionHandler::readline(char *data, size_t max_lines)
 {
+    if(connex_type != ConnectionType::SOCKFD) {
+        throw GenericError::INVALID_SOCKET_TYPE;
+    }
+    
     int num_lines, read_ct;
     char c, *usrbuf_ptr = data;
 
-    for(int i=0; i<bytes; i++) {
+    for(int num_lines=1; num_lines<max_lines; num_lines++) {
         if((read_ct=read_data(&c, 1)) == 1) {
             *usrbuf_ptr++ = c;
 
@@ -49,7 +77,7 @@ int SocketHandle::readline(char *data, size_t bytes)
             else break;
 
         }else{
-            throw SocketError::LINE_READ;
+            throw GenericError::FATAL;
         }
     }
 
@@ -57,23 +85,48 @@ int SocketHandle::readline(char *data, size_t bytes)
     return num_lines-1;
 }
 
-size_t SocketHandle::write_data(char *payload, size_t payload_sz)
+size_t ConnectionHandler::write_data(char *payload, size_t payload_sz)
 {
+    int ret;
     size_t num_written = 0;
     size_t bytes_left = payload_sz;
     char *userbuf_ptr = payload;
 
-    while(bytes_left > 0) {
-        if((num_written=write(connfd, userbuf_ptr, bytes_left)) <= 0) {
-            if(errno == EINTR) num_written=0; // retry 
-            else throw SocketError::WRITE;
+    if(connex_type == ConnectionType::SOCKFD) {
+        while(bytes_left > 0) {
+            if((num_written=write(connfd, userbuf_ptr, bytes_left)) <= 0) {
+                if(errno == EINTR) num_written=0; // retry 
+                else throw GenericError::SOCKFD_SEND;
+            }
+            bytes_left -= num_written;
+            userbuf_ptr += num_written;
         }
-        bytes_left -= num_written;
-        userbuf_ptr += num_written;
+
+    }else if(connex_type == ConnectionType::TLS_SESSION) {
+        while (bytes_left > 0) {
+            size_t chunk_size = std::min(MAX_TLS_RECORD_SIZE, bytes_left);
+            if((num_written = gnutls_record_send(session, userbuf_ptr, chunk_size)) < 0) {
+                throw GenericError::TLS_SEND;
+
+            }else if(ret == 0) {
+                std::cerr << "GnuTLS session closed unexpectedly" << std::endl;
+                break;
+            }
+            bytes_left -= num_written;
+            userbuf_ptr += num_written;
+        }
+    }else{
+        throw GenericError::INVALID_SOCKET_TYPE;
     }
     return num_written;
 }
 
+size_t ConnectionHandler::write_str(const string &str)
+{
+    size_t num_bytes = str.length();
+    char *payload = (char*)str.data();  //TODO check type conversion
+    return write_data(payload, num_bytes);
+}
 
 
 /* CSAPP Functions - BEGIN */
@@ -97,7 +150,7 @@ int open_listenfd(char *port)
     for (p = listp; p; p = p->ai_next) {
         /* Create a socket descriptor */
         if ((listenfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) < 0) 
-            continue;  /* Socket failed, try the next */
+            continue;  /* Connection failed, try the next */
 
         /* Eliminates "Address already in use" error from bind */
         setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR,    //line:netp:csapp:setsockopt

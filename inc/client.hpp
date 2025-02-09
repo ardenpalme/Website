@@ -15,72 +15,42 @@
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 
+#include "connection.hpp"
 #include "cache.hpp"
-
-using namespace std;
-
-enum class cli_err {
-    CLI_CLOSED_CONN,
-    RETRY,
-    FATAL,
-    PARSE_ERROR,
-    SERVE_ERROR,
-    CLEANUP_ERROR,
-    CONN_ERROR,
-    ADDR_ERROR,
-    NONE
-};
 
 class ClientHandler {
 public:
-    ClientHandler(int _connfd, 
-                  gnutls_session_t _session, 
-                  char *_cli_name,
-                  char *_cli_port) : 
-        connfd{_connfd}, session{_session} {
-            if(_cli_name != NULL) cli_name = string(_cli_name);
-            else cli_name = nullptr;
+    ClientHandler(ConnectionHandler& _connex_hndl,
+                  char *_hostname,
+                  char *_port) : connex_hndl{std::move(_connex_hndl)} {
+        if(_hostname != NULL) hostname = std::string(_hostname);
+        else hostname = nullptr;
 
-            if(_cli_port != NULL) cli_port = string(_cli_port);
-            else cli_port = nullptr;
-        }
+        if(_port != NULL) port = std::string(_port);
+        else port = nullptr;
+    }
 
-    ClientHandler(int _connfd, 
-                  char *_cli_name,
-                  char *_cli_port) : connfd{_connfd} {
-            if(_cli_name != NULL) cli_name = string(_cli_name);
-            else cli_name = nullptr;
+    void parse_request(void);
 
-            if(_cli_port != NULL) cli_port = string(_cli_port);
-            else cli_port = nullptr;
-        }
-
-    cli_err cleanup(void);
-
-    cli_err parse_request(void);
-
-    cli_err serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
-
-    cli_err retrieve_local(string host, string port);
+    void serve_client(std::shared_ptr<Cache<std::tuple<char*, size_t, time_t>>> cache);
 
     void redirect_cli();
 
-    friend ostream &operator<<(ostream &os, ClientHandler &cli);
+    friend std::ostream& operator<<(std::ostream& os, const ClientHandler& cli);
 
 private:
-    int connfd;
-    string cli_name, cli_port;
-    gnutls_session_t session;
-    vector<string> request_line;
-    map<string,string> request_hdrs;
+    ConnectionHandler connex_hndl;
+    std::string hostname, port;
+    std::vector<std::string> request_line;
+    std::map<std::string,std::string> request_hdrs;
 
     void redirect_cli_404();
 
-    void send_resp_hdr(string request_target, size_t file_size);
+    void send_resp_hdr(std::string request_target, size_t file_size);
 
-    void serve_static(string request_target);
+    void serve_static(std::string request_target);
 
-    void serve_static_compress(string request_target, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
+    void serve_static_compress(std::string request_target, std::shared_ptr<Cache<std::tuple<char*, size_t, time_t>>> cache);
 
-    void redirect(string target);
+    void redirect(std::string target);
 };
