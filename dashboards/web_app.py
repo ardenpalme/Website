@@ -4,10 +4,10 @@ from dash import html, dcc
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from indicators import get_data, ADX, PSAR
+from analysis import get_data, PSAR
 
-def get_graph(symbol, adx, psar):
-    fig = make_subplots(rows=3, cols=1,
+def get_graph(symbol, psar):
+    fig = make_subplots(rows=1, cols=1,
                 shared_xaxes=True,
                 vertical_spacing=0.10)
 
@@ -33,35 +33,6 @@ def get_graph(symbol, adx, psar):
         row=1, col=1
     )
 
-    ## ADX traces
-
-    fig.add_trace(
-        go.Scatter(x=adx.adx[symbol].index,
-                y=adx.adx[symbol].values, 
-                name="ADX",
-                line=dict(color="green")
-        ),
-        row=2, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(x=adx.plus_di[symbol].index,
-                y=adx.plus_di[symbol].values, 
-                name="+ DI",
-                line=dict(color="red")
-        ),
-        row=2, col=1
-    )
-
-    fig.add_trace(
-        go.Scatter(x=adx.minus_di[symbol].index,
-                y=adx.minus_di[symbol].values, 
-                name="- DI",
-                line=dict(color="blue")
-        ),
-        row=2, col=1
-    )
-
     fig.update_layout(
         xaxis=dict(rangeslider=dict(visible=False)),  
         autosize=True,
@@ -72,7 +43,11 @@ def get_graph(symbol, adx, psar):
     return fig
 
 
-app = dash.Dash(__name__)
+app = dash.Dash(
+    __name__,
+    routes_pathname_prefix='/dashboard/',
+    requests_pathname_prefix='/dashboard/',
+)
 
 data = get_data()
 open = data.get('Open')
@@ -80,73 +55,19 @@ high = data.get('High')
 low = data.get('Low')
 close = data.get('Close')
 
-adx = ADX.run(high, low, close)
 psar = PSAR.run(high, low)
 
-fig = get_graph('BTCUSD', adx, psar)
+fig = get_graph('BTCUSD', psar)
 
 app.layout = html.Div([
-        html.Div(
-            children=[
-                html.H1("Title", id='header-example')
-            ]
-        ),
-
-        dcc.Tabs([
-            dcc.Tab(
-                label='Tab one', 
-                children=[
-                    html.Div(
-                        id='tab1_chart',
-                        children = [
-                            dcc.Graph(
-                                figure=fig,
-                                style={
-                                    'width': '100%',
-                                    'height': '100%' 
-                                }
-                            )
-                        ],
-                        style={
-                            'display': 'flex',
-                            'flex-grow': 1,
-                            'justify-content': 'center',
-                            'align-items': 'center',
-                            'width': '100%',
-                            'height' : '100vh'
-                        }
-                    )
-                ]
-            ),
-
-            dcc.Tab(
-                label='Tab two', 
-                children=[
-                    html.Div(
-                        children = [
-                            dcc.Graph(
-                                figure=fig,
-                                style={
-                                    'width': '100%',
-                                    'height': '100%' 
-                                }
-                            )
-                        ],
-                        style={
-                            'display': 'flex',
-                            'flex-grow': 1,
-                            'justify-content': 'center',
-                            'align-items': 'center',
-                            'width': '100%',
-                            'height' : '100vh'
-                        }
-                    )
-                ]
-            )
-        ])
-    ], 
-    id = 'main-container'
-)
+    dcc.Graph(
+        figure=fig,
+        style={
+            'width': '100%',
+            'height': '100%' 
+        }
+    )
+],style={'width': '95vw', 'height': '95vh', 'margin': 0, 'padding': 0})
 
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0', port=8050)

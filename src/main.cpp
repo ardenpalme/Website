@@ -7,8 +7,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <netinet/in.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#include <gnutls/gnutls.h>
+#include <gnutls/x509.h>
 
 #include "csapp.h"
 #include "util.hpp"
@@ -37,33 +37,31 @@ int main(int argc, char *argv[]) {
         Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
             100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
-        SSL *ssl = srv_ctx.make_ssl();
-        if(!ssl){
-            cout << "SSL is NULL!\n";
+        // Initialize a GnuTLS session
+        gnutls_session_t session = srv_ctx.new_session();
+        if((ret=gnutls_record_set_max_size(session, 1024 * 2) != 0)) {
+            cout << "couldn't set max record size!!!!!!\n";
+        }
+
+        if(!session){
+            cout << "GnuTLS session is NULL!\n";
             Close(connfd);
             continue;
         } 
-        if((ret=SSL_set_fd(ssl, connfd)) < 0){
-            cerr << "SSL error during setting fd: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
-            SSL_free(ssl);
+
+        // Set the connection file descriptor
+        gnutls_transport_set_int(session, connfd);
+
+        // Perform TLS handshake
+        ret = gnutls_handshake(session);
+        if (ret < 0) {
+            std::cerr << "GnuTLS handshake failed: " << gnutls_strerror(ret) << std::endl;
+            gnutls_deinit(session);
             Close(connfd);
             continue;
         }
 
-        if ((ret = SSL_accept(ssl)) <= 0) {
-            int ssl_err = SSL_get_error(ssl, ret);
-            if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
-                cerr << "retry SSL_accept" <<endl;
-                continue;
-            }else{
-                cerr << "SSL accept error: " << ERR_error_string(ERR_get_error(), nullptr) << endl;
-                SSL_free(ssl);
-                Close(connfd);
-                continue;
-            }
-        } 
-
-        auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, ssl, cli_name, cli_port);
+        auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, session, cli_name, cli_port);
         std::thread cli_thread(handle_client, cli_hndl_ptr, cache_ptr);
         cli_thread.detach();
     }

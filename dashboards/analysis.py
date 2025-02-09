@@ -1,11 +1,10 @@
 from vectorbtpro import *
 import os
-import talib
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 def get_data():
-    priceseries_path = '/home/Dashboard/priceseries.h5'
+    priceseries_path = '/home/ubuntu/priceseries.h5'
 
     data = None
     if(os.path.exists(priceseries_path)):
@@ -20,57 +19,17 @@ def get_data():
         )
         data = vbt.PolygonData.pull(
             ["X:BTCUSD",
-            "X:ETHUSD",
-            "X:SOLUSD"],
+            "X:ETHUSD"],
             start="2022-01-01",
             timeframe="1 day"
         )
 
         data = data.rename_symbols({'X:BTCUSD':'BTCUSD', 
-                                    'X:ETHUSD' : 'ETHUSD', 
-                                    'X:SOLUSD' : 'SOLUSD'})
+                                    'X:ETHUSD' : 'ETHUSD'})
 
         data.to_hdf(priceseries_path)
     
     return data
-
-### ADX and DI
-
-@njit
-def get_dm(high, low):
-    high_shifted_1 = np.roll(high, 1)
-    high_shifted_1[0] = np.nan
-    plus_dm_cmp = high_shifted_1 - high
-    plus_dm = np.where(plus_dm_cmp > 0, plus_dm_cmp, 0)
-    
-    low_shifted_1 = np.roll(low, 1)
-    low_shifted_1[0] = np.nan
-    minus_dm_cmp = low_shifted_1 - low
-    minus_dm = np.where(minus_dm_cmp > 0, minus_dm_cmp, 0)
-    return plus_dm, minus_dm
-    
-def get_adx_di(high, low, close, di_ma_len, adx_ma_len):
-    plus_dm, minus_dm = get_dm(high, low)
-    atr = talib.ATR(high, low, close, di_ma_len)
-    plus_di = 100 * (talib.EMA(plus_dm, di_ma_len) / atr)
-    minus_di = 100 * (talib.EMA(minus_dm, di_ma_len) / atr)
-    
-    res = np.abs(plus_di - minus_di) / plus_di + minus_di
-    adx = talib.EMA(res, adx_ma_len)
-    return adx, plus_di, minus_di
-
-ADX = vbt.IF(
-    class_name = 'Average Directional Momentum Index',
-    short_name = 'ADX',
-    input_names = ['high', 'low', 'close'], 
-    param_names = ['di_ma_len', 'adx_ma_len'],
-    output_names = ['adx', 'plus_di', 'minus_di']
-).with_apply_func(
-    get_adx_di,
-    takes_1d=True,
-    di_ma_len=14,
-    adx_ma_len=20
-)
 
 ### Permutation Entropy
 

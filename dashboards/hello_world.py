@@ -1,7 +1,11 @@
 import dash
 from dash import html
 
-app = dash.Dash(__name__)
+app = dash.Dash(
+    __name__,
+    routes_pathname_prefix='/dashboard/',
+    requests_pathname_prefix='/dashboard/',
+)
 
 app.layout = html.Div(
     children=[

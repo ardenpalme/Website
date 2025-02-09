@@ -11,8 +11,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <netinet/in.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#include <gnutls/gnutls.h>
+#include <gnutls/x509.h>
 
 #include "util.hpp"
 #include "client.hpp"
@@ -20,15 +20,14 @@
 class ServerContext {
 public:
     ServerContext(int _port) : port{_port} {
-        init_openssl();
-        ctx = create_context();
-        configure_context(ctx);
+        gnutls_global_init();
         cache = make_shared<Cache<tuple<char*, size_t, time_t>>>();
     }
 
-    SSL *make_ssl(void) {
-        SSL *ssl = SSL_new(ctx);
-        return ssl;
+    gnutls_session_t new_session(void) {
+        session = create_session();
+        configure_session(session);
+        return session;
     }
 
     shared_ptr<Cache<tuple<char*, size_t, time_t>>> get_cache(void) {
@@ -37,16 +36,16 @@ public:
 
 private:
     int port;
-    SSL_CTX *ctx;
+    gnutls_session_t session;
     shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache;
 
-    void init_openssl();
+    void init_ssl();
 
     void cleanup_openssl();
 
-    SSL_CTX *create_context();
+    gnutls_session_t create_session();
 
-    void configure_context(SSL_CTX *ctx);
+    void configure_session(gnutls_session_t session);
 };
 
 #endif /* __SERVER_HPP__ */

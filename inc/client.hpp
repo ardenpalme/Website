@@ -13,8 +13,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#include <gnutls/gnutls.h>
+#include <gnutls/x509.h>
 
 #include "csapp.h"
 #include "util.hpp"
@@ -36,10 +36,10 @@ enum class cli_err {
 class ClientHandler {
 public:
     ClientHandler(int _connfd, 
-                  SSL *_ssl, 
+                  gnutls_session_t _session, 
                   char *_cli_name,
                   char *_cli_port) : 
-        connfd{_connfd}, ssl{_ssl} {
+        connfd{_connfd}, session{_session} {
             if(_cli_name != NULL) cli_name = string(_cli_name);
             else cli_name = nullptr;
 
@@ -61,9 +61,11 @@ private:
     int connfd;
     string cli_name, cli_port;
     rio_t rio;
-    SSL *ssl;
+    gnutls_session_t session;
     vector<string> request_line;
     map<string,string> request_hdrs;
+
+    void redirect_cli_404();
 
     void send_resp_hdr(string request_target, size_t file_size);
 
