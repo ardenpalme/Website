@@ -6,6 +6,8 @@
 #include<unistd.h>
 #include<assert.h>
 #include<time.h>
+#include<ctime>
+#include <sstream>
 
 #include "util.hpp"
 
@@ -173,4 +175,22 @@ pair<char*, size_t> deflate_object(char *obj, size_t obj_size, int compression_l
     compressed_bytes = new char[vec.size()];
     memcpy(compressed_bytes, vec.data(), vec.size());
     return {compressed_bytes, vec.size()};
+}
+
+
+std::string humanReadableSize(size_t bytes) {
+    const char* sizes[] = {"B", "KB", "MB", "GB", "TB", "PB", "EB"};
+    int order = 0;
+    double adjustedSize = static_cast<double>(bytes);
+
+    // Determine the appropriate size unit
+    while (adjustedSize >= 1024 && order < sizeof(sizes)/sizeof(*sizes) - 1) {
+        order++;
+        adjustedSize /= 1024;
+    }
+
+    // Format the result with 2 decimal places
+    char buffer[50];
+    snprintf(buffer, sizeof(buffer), "%.2f %s", adjustedSize, sizes[order]);
+    return std::string(buffer);
 }

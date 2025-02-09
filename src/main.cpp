@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
             cerr << "epoll_wait failed";
             break;
         }
+
         for (int i = 0; i < nfds; i++) {
             // Handle HTTPS
             if (events[i].data.fd == listen_fd1) {
@@ -80,7 +81,7 @@ int main(int argc, char *argv[]) {
                 if(!session){
                     cout << "GnuTLS session is NULL!\n";
                     Close(connfd);
-                    continue;
+                    break;
                 } 
 
                 // Set the connection file descriptor
@@ -92,7 +93,7 @@ int main(int argc, char *argv[]) {
                     std::cerr << "GnuTLS handshake failed: " << gnutls_strerror(ret) << std::endl;
                     gnutls_deinit(session);
                     Close(connfd);
-                    continue;
+                    break;
                 }
 
                 auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, session, cli_name, cli_port);
@@ -119,7 +120,7 @@ int main(int argc, char *argv[]) {
 
 void redirect_client(shared_ptr<ClientHandler> cli_hndl) {
     cli_hndl->redirect_cli();
-    cli_hndl->close_socket();
+    cli_hndl->close_socket(); // no *valid* GnuTLS session
 }
 
 void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) {

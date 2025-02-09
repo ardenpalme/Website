@@ -8,4 +8,3 @@ Backend
 * Multi-threaded C/C++ sockets
 * Zlib for compression
 * GnuTLS to support HTTPS 
-* Reverse SSL proxy to secure local HTTP-native applications

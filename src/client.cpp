@@ -34,227 +34,20 @@ cli_err ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t
 
     string method = request_line[0];
     string uri = request_line[1];
-    string protocol = request_line[2];
-
-    string dashboard_prefix = "/dashboard/";
 
     if(method == "GET") {
-        //cout << uri << endl;
-        if(uri.find(dashboard_prefix) != string::npos) {
-            //cout << "retrieve " <<  uri << " from localhost:8050\n";
-            err_code = retrieve_local("localhost", "8050");
-
-        }else{
-            if(uri == "/") {
-                uri = "index.html";
-            }else{ 
-                uri = uri.substr(1);
-            }
-            uri.insert(0, "assets/");
-            serve_static_compress(uri, cache);
+        if(uri == "/") {
+            uri = "index.html";
+        }else{ 
+            uri = uri.substr(1);
         }
+        uri.insert(0, "assets/");
+        serve_static_compress(uri, cache);
     } else {
         cerr << "Unsupported HTTP method: " << method << endl;
         err_code = cli_err::SERVE_ERROR;
     }
     return err_code;
-}
-
-cli_err ClientHandler::retrieve_local(string host, string port) {
-    char buf[MAXLINE];
-    int clientfd;
-    char *raw_resp = new char[MAX_FILESIZE];
-    rio_t rio;
-    ssize_t ret;
-
-    clientfd = open_clientfd((char*)host.c_str(), (char*)port.c_str());
-    if(clientfd < 0) {
-        redirect_cli_404();
-        return cli_err::CLI_CLOSED_CONN;
-    }
-    //cout << "Connected to " << host << ":" << port << " ..." << endl;
-
-    string first_req_line;
-    for(auto ele : request_line) first_req_line = first_req_line + " " + ele;
-
-    //cout << first_req_line << endl;
-    sprintf(buf, "%s\r\n", first_req_line.c_str());
-    Rio_writen(clientfd, buf, strlen(buf));
-
-    for(auto hdr : request_hdrs) {
-        if(hdr.first.find("Host") != string::npos) {
-            sprintf(buf, "Host: %s:%s\r\n", host.c_str(), port.c_str());
-            Rio_writen(clientfd, buf, strlen(buf));
-            //cout << " " << buf << endl;
-
-        }else{
-            sprintf(buf, "%s: %s\r\n", hdr.first.c_str(), hdr.second.c_str());
-            Rio_writen(clientfd, buf, strlen(buf));
-            //cout << "[" << hdr.first << ": " << hdr.second << "]" << endl;
-        }
-    }
-
-    //cout << endl;
-    sprintf(buf, "\r\n");
-    Rio_writen(clientfd, buf, strlen(buf));
-
-    int bytes_read = Rio_readn(clientfd, raw_resp, MAX_FILESIZE);
-    //cout << "read " << bytes_read << " bytes from " << host << ":" << port << endl;
-
-    vector<string> resp_hdrs;
-
-    int line_start_idx = 0;
-    for(int i=0; i<bytes_read; i++) {
-        if(raw_resp[i] == '\r') {
-            string hdr(&raw_resp[line_start_idx], (i-line_start_idx));
-            if(hdr.length() >= MIN_RESP_SZ) { // detects CRLF
-                resp_hdrs.push_back(hdr);
-            }else{
-                line_start_idx+=2; 
-                break;
-            }
-            line_start_idx = i+2;
-        }
-    }
-
-    int resp_payload_idx = line_start_idx;
-
-    if(resp_hdrs[0].find("304") != string::npos) {
-        cout << "HERE\n";
-
-        for(auto hdr : resp_hdrs) {
-            if(hdr.find("Server:") != string::npos){
-                sprintf(buf, "Server: Web Server\r\n");
-                if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-                    std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-                }
-                cout << " " << buf << endl;
-
-            }else{
-                sprintf(buf, "%s\r\n", hdr.c_str());
-                if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-                    std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-                }
-                cout << "[" << hdr << "]" << endl;
-            }
-        }
-
-        sprintf(buf, "\r\n");
-        if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-            std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-        }
-
-        delete[] raw_resp;
-        return cli_err::NONE;
-    }
-
-    if(resp_hdrs[0].find("200") == string::npos) {
-        cerr << "Internal Resource Response Invalid\n";
-        for(auto hdr : resp_hdrs) cout << "[" << hdr << "]" << endl;
-
-        delete [] raw_resp;
-        return cli_err::SERVE_ERROR;
-    }
-
-    //cout << "uncompressed size: " << bytes_read - resp_payload_idx << " bytes" << endl;
-    auto compressed_obj = deflate_object(&raw_resp[resp_payload_idx], 
-                                        bytes_read - resp_payload_idx, 
-                                        Z_DEFAULT_COMPRESSION);
-    char *payload = compressed_obj.first;
-    size_t payload_sz = compressed_obj.second;
-    //cout << "payload size: " << payload_sz << " bytes" << endl;
-
-    for(auto hdr : resp_hdrs) {
-        if(hdr.find("Server:") != string::npos){
-            sprintf(buf, "Server: Web Server\r\n");
-            if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-                std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-            }
-            //cout << " " << buf << endl;
-
-        }else if(hdr.find("Content-Length") != string::npos){
-            sprintf(buf, "Content-Length: %lu\r\n", payload_sz);
-            if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-                std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-            }
-            //cout << " " << buf << endl;
-
-            sprintf(buf, "Content-Encoding: deflate\r\n");
-            if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-                std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-            }
-            //cout << " " << buf << endl;
-
-        }else{
-            sprintf(buf, "%s\r\n", hdr.c_str());
-            if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-                std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-            }
-            //cout << "[" << hdr << "]" << endl;
-        }
-    }
-
-    // HTTP Response header termination CRLF
-    //cout << endl;
-    sprintf(buf, "\r\n");
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    //SSL_write(ssl, payload, static_cast<int>(payload_sz));
-    if((ret = send_large_data(session, payload, static_cast<int>(payload_sz))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    delete [] raw_resp;
-    return cli_err::NONE;
-}
-
-void ClientHandler::serve_static(string filename) {
-    char filetype[MAXLINE/2], buf[MAXLINE];
-    ssize_t ret;
-
-    ifstream ifs(filename, std::ifstream::binary);
-    if(!ifs) {
-        cerr << filename << " non found." << endl;
-        return;
-    }
-
-    std::filebuf* pbuf = ifs.rdbuf();
-    std::size_t file_size = pbuf->pubseekoff (0,ifs.end,ifs.in);
-    pbuf->pubseekpos (0,ifs.in);
-
-    char* file_buf=new char[file_size];
-    pbuf->sgetn (file_buf,file_size);
-    ifs.close();
-
-    /* Send response headers to client */
-    get_filetype((char*)filename.c_str(), filetype);    //line:netp:servestatic:getfiletype
-    sprintf(buf, "HTTP/1.0 200 OK\r\n"); //line:netp:servestatic:beginserve
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Server: Web Server\r\n");
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Content-length: %lu\r\n", file_size);
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
-    if((ret = send_large_data(session, buf, strlen(buf))) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    if((ret = send_large_data(session, file_buf, file_size)) < 0) {
-        std::cerr << "GnuTLS write error: " << gnutls_strerror(ret) << std::endl;
-    }
-
-    delete[] file_buf;
 }
 
 void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
@@ -297,6 +90,7 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
         }
     }
 
+    cache->check_updates();
 
     get_filetype((char*)filename.c_str(), filetype);    
     sprintf(buf, "HTTP/1.0 200 OK\r\n"); 
@@ -498,7 +292,7 @@ void ClientHandler::redirect_cli() {
     Rio_readlineb(&rio, buf, MAXLINE); 
     sprintf(buf, "HTTP/1.0 301 Moved Permanently\r\n"); 
     Rio_writen(connfd, buf, strlen(buf));
-    sprintf(buf, "Location: https://diakhatepalme.com\r\n");
+    sprintf(buf, "Location: https://ardendiak.com\r\n");
     Rio_writen(connfd, buf, strlen(buf));
     sprintf(buf, "Content-Length: 0\r\n");
     Rio_writen(connfd, buf, strlen(buf));
