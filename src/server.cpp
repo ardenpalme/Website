@@ -8,9 +8,6 @@
 
 #include "server.hpp"
 
-void ServerContext::init_ssl() {
-}
-
 void ServerContext::cleanup_openssl() {
     gnutls_global_deinit();  
 }
@@ -88,5 +85,3 @@ void ServerContext::configure_session(gnutls_session_t session) {
     // TODO Disable TLS renegotiation
     //gnutls_session_set_flags(session, GNUTLS_NO_RENEGOTIATION);
 }
-
-

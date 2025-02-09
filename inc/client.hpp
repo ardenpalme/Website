@@ -1,5 +1,4 @@
-#ifndef __CLIENT_HPP__
-#define __CLIENT_HPP__
+#pragma once
 
 #include <iostream>
 #include <fstream>
@@ -16,8 +15,7 @@
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 
-#include "csapp.h"
-#include "util.hpp"
+#include "cache.hpp"
 
 using namespace std;
 
@@ -47,6 +45,16 @@ public:
             else cli_port = nullptr;
         }
 
+    ClientHandler(int _connfd, 
+                  char *_cli_name,
+                  char *_cli_port) : connfd{_connfd} {
+            if(_cli_name != NULL) cli_name = string(_cli_name);
+            else cli_name = nullptr;
+
+            if(_cli_port != NULL) cli_port = string(_cli_port);
+            else cli_port = nullptr;
+        }
+
     cli_err cleanup(void);
 
     cli_err parse_request(void);
@@ -57,16 +65,11 @@ public:
 
     void redirect_cli();
 
-    void close_socket() {
-        Close(connfd);
-    }
-
     friend ostream &operator<<(ostream &os, ClientHandler &cli);
 
 private:
     int connfd;
     string cli_name, cli_port;
-    rio_t rio;
     gnutls_session_t session;
     vector<string> request_line;
     map<string,string> request_hdrs;
@@ -81,5 +84,3 @@ private:
 
     void redirect(string target);
 };
-
-#endif /* __CLIENT_HPP__ */

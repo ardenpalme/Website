@@ -12,7 +12,7 @@
 #include <sys/epoll.h>
 #include <fcntl.h>
 
-#include "csapp.h"
+#include "sockets.hpp"
 #include "util.hpp"
 #include "client.hpp"
 #include "server.hpp"
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
                 gnutls_session_t session = srv_ctx.new_session();
                 if(!session){
                     cout << "GnuTLS session is NULL!\n";
-                    Close(connfd);
+                    close(connfd);
                     break;
                 } 
 
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
                 if (ret < 0) {
                     std::cerr << "GnuTLS handshake failed: " << gnutls_strerror(ret) << std::endl;
                     gnutls_deinit(session);
-                    Close(connfd);
+                    close(connfd);
                     break;
                 }
 
@@ -106,9 +106,7 @@ int main(int argc, char *argv[]) {
                 Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
                     100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
-                gnutls_session_t tmp_session;
-
-                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, tmp_session, cli_name, cli_port);
+                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connfd, cli_name, cli_port);
                 std::thread cli_thread(redirect_client, cli_hndl_ptr);
                 cli_thread.detach();
             }
@@ -120,7 +118,6 @@ int main(int argc, char *argv[]) {
 
 void redirect_client(shared_ptr<ClientHandler> cli_hndl) {
     cli_hndl->redirect_cli();
-    cli_hndl->close_socket(); // no *valid* GnuTLS session
 }
 
 void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) {

@@ -12,13 +12,18 @@
 #include <netinet/in.h>
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <zlib.h>
 
 #include "client.hpp"
 #include "util.hpp"
+#include "sockets.hpp"
+#include "cache.hpp"
 
-#define MAX_NUM_HEADERS 120
-#define MAX_FILESIZE (1024 * 1024)
-#define MIN_RESP_SZ 5
+#define MAX_FILESIZE (1024 * 1024) /* 1MB */
+#define	MAXLINE	 8192  /* Max text line length */
 
 using namespace std;
 
@@ -199,13 +204,13 @@ cli_err ClientHandler::cleanup() {
     if (ret < 0) {
         std::cerr << "Error shutting down GnuTLS session: " << gnutls_strerror(ret) << std::endl;
         gnutls_deinit(session);  // Free session resources even if shutdown fails
-        Close(connfd);
+        close(connfd);
         return cli_err::CLEANUP_ERROR;
     }
 
     // Free GnuTLS session resources
     gnutls_deinit(session);
-    Close(connfd);
+    close(connfd);
     return cli_err::NONE;
 }
 
@@ -285,17 +290,20 @@ int send_large_data(gnutls_session_t session, const char* data, size_t data_size
 }
 
 void ClientHandler::redirect_cli() {
-    rio_t rio;
     char buf[MAXLINE];
+
+    SocketHandle sock_hndl(connfd);
   
-    Rio_readinitb(&rio, connfd);
-    Rio_readlineb(&rio, buf, MAXLINE); 
+    sock_hndl.readline(buf, MAXLINE);
     sprintf(buf, "HTTP/1.0 301 Moved Permanently\r\n"); 
-    Rio_writen(connfd, buf, strlen(buf));
+    sock_hndl.write_data(buf, strlen(buf));
+
     sprintf(buf, "Location: https://ardendiak.com\r\n");
-    Rio_writen(connfd, buf, strlen(buf));
+    sock_hndl.write_data(buf, strlen(buf));
+
     sprintf(buf, "Content-Length: 0\r\n");
-    Rio_writen(connfd, buf, strlen(buf));
+    sock_hndl.write_data(buf, strlen(buf));
+
     sprintf(buf, "Connection: close\r\n\r\n");
-    Rio_writen(connfd, buf, strlen(buf));
+    sock_hndl.write_data(buf, strlen(buf));
 }

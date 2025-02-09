@@ -14,7 +14,7 @@
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 
-#include "util.hpp"
+#include "cache.hpp"
 #include "client.hpp"
 
 class ServerContext {
@@ -38,8 +38,6 @@ private:
     int port;
     gnutls_session_t session;
     shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache;
-
-    void init_ssl();
 
     void cleanup_openssl();
 
