@@ -54,6 +54,16 @@ void ServerContext::configure_session(gnutls_session_t session) {
         exit(EXIT_FAILURE);
     }
 
+    // Load certificate and key
+    ret = gnutls_certificate_set_x509_key_file(x509_cred,
+                                               "/etc/pki/tls/private/ardenpalme_com.crt",
+                                               "/etc/pki/tls/private/ardenpalme_com.key",
+                                               GNUTLS_X509_FMT_PEM);
+    if (ret < 0) {
+        std::cerr << "Failed to load certificate or key: " << gnutls_strerror(ret) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     // Load CA bundle to trust certificates
     ret = gnutls_certificate_set_x509_trust_file(x509_cred, 
                                                  "/etc/pki/tls/private/ardendiak_com_ca_bundle.crt", 
@@ -66,6 +76,15 @@ void ServerContext::configure_session(gnutls_session_t session) {
     // Load CA bundle to trust certificates
     ret = gnutls_certificate_set_x509_trust_file(x509_cred, 
                                                  "/etc/pki/tls/private/diakhatepalme_com_ca_bundle.crt", 
+                                                 GNUTLS_X509_FMT_PEM);
+    if (ret < 0) {
+        std::cerr << "Failed to load CA bundle: " << gnutls_strerror(ret) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    // Load CA bundle to trust certificates
+    ret = gnutls_certificate_set_x509_trust_file(x509_cred, 
+                                                 "/etc/pki/tls/private/ardenpalme_com_ca_bundle.crt", 
                                                  GNUTLS_X509_FMT_PEM);
     if (ret < 0) {
         std::cerr << "Failed to load CA bundle: " << gnutls_strerror(ret) << std::endl;

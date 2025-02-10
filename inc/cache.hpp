@@ -25,13 +25,13 @@ public:
     void set_cached_page(pair<string, T> page_data);
 
     void check_updates(void);
+    void print(bool verbose=false);
 
 private:
     map<string, T> cached_pages;
     shared_mutex mtx;
     size_t num_cache_entries;
 
-    void print();
 };
 
 
@@ -51,7 +51,7 @@ void Cache<T>::set_cached_page(pair<string, T> page_data) {
 }
 
 template<typename T>
-void Cache<T>::print()
+void Cache<T>::print(bool verbose)
 {
     int elem_count = 0;
     ostringstream oss;
@@ -77,8 +77,7 @@ void Cache<T>::print()
     cout << "Cache: " << elem_count << " entries " 
         << "(" << humanReadableSize(total_size) << ")" << endl;
 
-    cout << oss.str();
-    cout << endl;
+    if(verbose) cout << oss.str() << endl;
 }
 
 template<typename T>
@@ -89,5 +88,9 @@ void Cache<T>::check_updates(void)
         std::shared_lock lck {mtx};
         if(cached_pages.size() > num_cache_entries) cache_grew = true;
     }
-    if(cache_grew) this->print();
+
+    if(cache_grew) {
+        this->print();
+        num_cache_entries = cached_pages.size();
+    }
 }
