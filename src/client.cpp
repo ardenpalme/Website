@@ -494,14 +494,14 @@ void ClientHandler::redirect_cli() {
     rio_t rio;
     char buf[MAXLINE];
   
-    Rio_readinitb(&rio, connfd);
-    Rio_readlineb(&rio, buf, MAXLINE); 
+    rio_readinitb(&rio, connfd);
+    rio_readlineb(&rio, buf, MAXLINE); 
     sprintf(buf, "HTTP/1.0 301 Moved Permanently\r\n"); 
-    Rio_writen(connfd, buf, strlen(buf));
+    rio_writen(connfd, buf, strlen(buf));
     sprintf(buf, "Location: https://diakhatepalme.com\r\n");
-    Rio_writen(connfd, buf, strlen(buf));
+    rio_writen(connfd, buf, strlen(buf));
     sprintf(buf, "Content-Length: 0\r\n");
-    Rio_writen(connfd, buf, strlen(buf));
+    rio_writen(connfd, buf, strlen(buf));
     sprintf(buf, "Connection: close\r\n\r\n");
-    Rio_writen(connfd, buf, strlen(buf));
+    rio_writen(connfd, buf, strlen(buf));
 }
