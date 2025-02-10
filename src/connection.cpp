@@ -1,4 +1,5 @@
 #include "connection.hpp"
+#include "csapp.h"
 
 const static size_t LISTENQ  = 1024;
 const static size_t MAX_TLS_RECORD_SIZE = 16384; 
@@ -7,27 +8,6 @@ size_t ConnectionHandler::read_data(char *data, size_t num_req_bytes)
 {
     int count = 0;
     if(connex_type == ConnectionType::SOCKFD) {
-        while(byte_count <= 0) {
-            byte_count = read(connfd, buf, sizeof(buf));
-
-            if(byte_count < 0) {
-                throw GenericError::FATAL;
-
-            }else if(byte_count == 0) {
-                throw GenericError::SOCKFD_READ_EOF;
-
-            }else{
-                bufptr = buf; // reset buffer ptr
-            }
-        }
-
-        /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
-        if(byte_count < num_req_bytes) count = byte_count;
-        else count = num_req_bytes;
-
-        memcpy(data, bufptr, count);
-        bufptr += count;
-        byte_count -= count;
 
     }else if(connex_type == ConnectionType::TLS_SESSION) {
         count = gnutls_record_recv(session, data, num_req_bytes);

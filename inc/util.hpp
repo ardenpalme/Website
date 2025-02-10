@@ -26,8 +26,4 @@ std::vector<std::string> splitline(std::string line, char delim);
 
 std::pair<char *, size_t> deflate_file(std::string filename, int compression_level);
 
-/* CSAPP Functions - BEGIN */
-
 void get_filetype(char *filename, char *filetype);
-
-/* CSAPP Functions - END */

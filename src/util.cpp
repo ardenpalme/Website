@@ -148,8 +148,6 @@ std::string report_error(GenericError &err)
     }
 }
 
-/* CSAPP Functions - BEGIN */
-
 void get_filetype(char *filename, char *filetype) {
     if (strstr(filename, ".html"))
         strcpy(filetype, "text/html");
@@ -168,5 +166,3 @@ void get_filetype(char *filename, char *filetype) {
     else
         strcpy(filetype, "text/plain");
 }
-
-/* CSAPP Functions - END */

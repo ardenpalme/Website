@@ -84,17 +84,3 @@ private:
     char *bufptr;           /* Next unread byte in internal buf */
     char buf[RIO_BUFSIZE];  /* Internal buffer */
 };
-
-/* CSAPP Functions - BEGIN */
-
-void Getnameinfo(const struct sockaddr *sa, socklen_t salen, char *host, 
-                 size_t hostlen, char *serv, size_t servlen, int flags);
-
-int Open_listenfd(char *port);
-
-int Accept(int s, struct sockaddr *addr, socklen_t *addrlen);
-
-void Getnameinfo(const struct sockaddr *sa, socklen_t salen, char *host, 
-                 size_t hostlen, char *serv, size_t servlen, int flags);
-
-/* CSAPP Functions - END */

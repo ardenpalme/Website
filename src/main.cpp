@@ -34,7 +34,6 @@ int main(int argc, char *argv[])
     std::string srv_port_str;
     struct epoll_event ev, events[NUM_LISTEN_PORTS];
 
-
     ServerContext srv_ctx;
     auto cache_ptr = srv_ctx.get_cache();
     srv_port_str = std::to_string((int)HTTPS_PORT);
@@ -73,8 +72,8 @@ int main(int argc, char *argv[])
         for (int i = 0; i < nfds; i++) {
             // Handle HTTPS
             if (events[i].data.fd == listen_fd1) {
-                int connfd = Accept(listen_fd1, (struct sockaddr*)&addr, &msg_len);
-                Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
+                int connfd = accept(listen_fd1, (struct sockaddr*)&addr, &msg_len);
+                getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
                     100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
                 // Initialize a GnuTLS session
@@ -105,8 +104,8 @@ int main(int argc, char *argv[])
 
             // Redirect all HTTP requests to HTTPS
             }else if(events[i].data.fd == listen_fd2) {
-                int connfd = Accept(listen_fd2, (struct sockaddr*)&addr, &msg_len);
-                Getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
+                int connfd = accept(listen_fd2, (struct sockaddr*)&addr, &msg_len);
+                getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
                     100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
                 ConnectionHandler connex_hndl(connfd);
