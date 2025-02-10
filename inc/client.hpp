@@ -18,39 +18,43 @@
 #include "connection.hpp"
 #include "cache.hpp"
 
+using namespace std;
+
 class ClientHandler {
 public:
-    ClientHandler(ConnectionHandler& _connex_hndl,
+    ClientHandler(unique_ptr<ConnectionHandler> &_connex_hndl,
                   char *_hostname,
-                  char *_port) : connex_hndl{std::move(_connex_hndl)} {
-        if(_hostname != NULL) hostname = std::string(_hostname);
+                  char *_port) {
+        connex_hndl = std::move(_connex_hndl);
+
+        if(_hostname != NULL) hostname = string(_hostname);
         else hostname = nullptr;
 
-        if(_port != NULL) port = std::string(_port);
+        if(_port != NULL) port = string(_port);
         else port = nullptr;
     }
 
     void parse_request(void);
 
-    void serve_client(std::shared_ptr<Cache<std::tuple<char*, size_t, time_t>>> cache);
+    void serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
 
     void redirect_cli();
 
-    friend std::ostream& operator<<(std::ostream& os, const ClientHandler& cli);
+    friend ostream& operator<<(ostream& os, const ClientHandler& cli);
 
 private:
-    ConnectionHandler connex_hndl;
-    std::string hostname, port;
-    std::vector<std::string> request_line;
-    std::map<std::string,std::string> request_hdrs;
+    unique_ptr<ConnectionHandler> connex_hndl;
+    string hostname, port;
+    vector<string> request_line;
+    map<string,string> request_hdrs;
 
     void redirect_cli_404();
 
-    void send_resp_hdr(std::string request_target, size_t file_size);
+    void send_resp_hdr(string request_target, size_t file_size);
 
-    void serve_static(std::string request_target);
+    void serve_static(string request_target);
 
-    void serve_static_compress(std::string request_target, std::shared_ptr<Cache<std::tuple<char*, size_t, time_t>>> cache);
+    void serve_static_compress(string request_target, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache);
 
-    void redirect(std::string target);
+    void redirect(string target);
 };

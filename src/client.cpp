@@ -28,7 +28,8 @@
 
 using namespace std;
 
-void ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
+void ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) 
+{
     if (request_line.size() < 3) throw GenericError::CLI_REQ_LINE_INVALID;
 
     string method = request_line[0];
@@ -47,7 +48,8 @@ void ClientHandler::serve_client(shared_ptr<Cache<tuple<char*, size_t, time_t>>>
     }
 }
 
-void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) {
+void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache) 
+{
     int ret, fd;
     time_t file_modified_time;
     struct stat sb;
@@ -90,21 +92,21 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
     cache->check_updates();
 
     get_filetype((char*)filename.c_str(), filetype);    
-    connex_hndl.write_str("HTTP/1.0 200 OK\r\n"); 
-    connex_hndl.write_str("Server: Web Server\r\n"); 
-    connex_hndl.write_str("Content-Encoding: deflate\r\n"); 
-    connex_hndl.write_str(format("Content-Length: {}\r\n.", get<1>(zipped_data)));
-    connex_hndl.write_str(format("Content-Type: {}\r\n.", filetype));
-    connex_hndl.write_str("\r\n"); 
+    connex_hndl->write_str("HTTP/1.0 200 OK\r\n"); 
+    connex_hndl->write_str("Server: Web Server\r\n"); 
+    connex_hndl->write_str("Content-Encoding: deflate\r\n"); 
+    connex_hndl->write_str(format("Content-Length: {}\r\n.", get<1>(zipped_data)));
+    connex_hndl->write_str(format("Content-Type: {}\r\n\r\n", filetype));
 
-    connex_hndl.write_data(get<0>(zipped_data), static_cast<int>(get<1>(zipped_data)));
+    connex_hndl->write_data(get<0>(zipped_data), static_cast<int>(get<1>(zipped_data)));
 }
 
-void ClientHandler::parse_request() {
+void ClientHandler::parse_request() 
+{
     size_t bytes_read;
     char raw_req[MAX_FILESIZE];
 
-    bytes_read = connex_hndl.read_data(raw_req, MAX_FILESIZE);
+    bytes_read = connex_hndl->read_data(raw_req, MAX_FILESIZE);
 
     std::string req_str(raw_req, bytes_read);  // Ensure the string is built with actual bytes read
     std::vector<std::string> request_lines = splitline(req_str, '\r');
@@ -134,7 +136,8 @@ void ClientHandler::parse_request() {
     }
 }
 
-void ClientHandler::redirect_cli_404() {
+void ClientHandler::redirect_cli_404() 
+{
     string filename = "assets/404.html";
     char filetype[MAXLINE/2], buf[MAXLINE];
     ssize_t ret;
@@ -152,26 +155,24 @@ void ClientHandler::redirect_cli_404() {
     ifs.close();
     get_filetype((char*)filename.c_str(), filetype);    
 
-    connex_hndl.write_str("HTTP/1.1 404 Not Found\r\n");
-    connex_hndl.write_str("Server: Web Server\r\n");
-    connex_hndl.write_str(format("Content-Length: {}\r\n", file_size));
-    connex_hndl.write_str(format("Content-Type: {}\r\n", filetype));
-    connex_hndl.write_str("Connection: close\r\n");
-    connex_hndl.write_str("\r\n");
+    connex_hndl->write_str("HTTP/1.1 404 Not Found\r\n");
+    connex_hndl->write_str("Server: Web Server\r\n");
+    connex_hndl->write_str(format("Content-Length: {}\r\n", file_size));
+    connex_hndl->write_str(format("Content-Type: {}\r\n", filetype));
+    connex_hndl->write_str("Connection: close\r\n\r\n");
 
-    connex_hndl.write_data(file_buf, file_size);
+    connex_hndl->write_data(file_buf, file_size);
 }
 
 void ClientHandler::redirect_cli() 
 {
-    char buf[MAXLINE];
-    connex_hndl.read_data(buf, MAXLINE); // TODO CHECK read vs readline
+    char req_line[MAXLINE];
 
-    connex_hndl.write_str("HTTP/1.0 301 Moved Permanently\r\n"); 
-    connex_hndl.write_str("Location: https://ardendiak.com\r\n");
-    connex_hndl.write_str("Content-Length: 0\r\n");
-    connex_hndl.write_str("Connection: close\r\n");
-    connex_hndl.write_str("\r\n");
+    connex_hndl->read_data(req_line, MAXLINE);
+    connex_hndl->write_str("HTTP/1.0 301 Moved Permanently\r\n"); 
+    connex_hndl->write_str("Location: https://ardendiak.com\r\n");
+    connex_hndl->write_str("Content-Length: 0\r\n");
+    connex_hndl->write_str("Connection: close\r\n\r\n");
 }
 
 std::ostream& operator<<(std::ostream &os, const ClientHandler &cli)

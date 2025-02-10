@@ -120,7 +120,7 @@ std::string report_error(GenericError &err)
         case GenericError::SOCKFD_READ_EOF:
             return "Detected an EOF during a read";
 
-        case GenericError::INVALID_SOCKET_TYPE:
+        case GenericError::INVALID_CONNEX_TYPE:
             return "Invalid Socket Type";
 
         case GenericError::TLS_SEND:

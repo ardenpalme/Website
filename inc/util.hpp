@@ -8,7 +8,7 @@
 enum class GenericError {
     FATAL,
     SOCKFD_READ_EOF,
-    INVALID_SOCKET_TYPE,
+    INVALID_CONNEX_TYPE,
     TLS_SEND,
     SOCKFD_SEND,
     TLS_CONNEX_CLOSE,

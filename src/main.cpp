@@ -96,9 +96,9 @@ int main(int argc, char *argv[])
                     break;
                 }
 
-                ConnectionHandler connex_hndl(session);
-
+                auto connex_hndl = std::make_unique<ConnectionHandler>(session);
                 auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port);
+
                 std::thread cli_thread(handle_client, cli_hndl_ptr, cache_ptr);
                 cli_thread.detach();
 
@@ -108,9 +108,9 @@ int main(int argc, char *argv[])
                 getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
                     100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
-                ConnectionHandler connex_hndl(connfd);
-
+                auto connex_hndl = std::make_unique<ConnectionHandler>(connfd);
                 auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port);
+
                 std::thread cli_thread(redirect_client, cli_hndl_ptr);
                 cli_thread.detach();
             }
@@ -122,35 +122,29 @@ int main(int argc, char *argv[])
 
 void redirect_client(shared_ptr<ClientHandler> cli_hndl) 
 {
-    cli_hndl->redirect_cli();
+    cout << "redirecting " << *cli_hndl << endl;
+    try {
+        cli_hndl->redirect_cli();
+    }catch(GenericError &err) {
+        report_error(err);
+        return;
+    }
 }
 
 void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) 
 {
-    bool parsing_hdrs = true;
-
-    do{
+    while(1) {
         try {
             cli_hndl->parse_request();
-            parsing_hdrs = false;
-
+            break;
         }catch(GenericError &err) {
-            switch(err) {
-                case GenericError::TLS_RETRY:
-                    cerr << "Retrying to parse HTTP request from " << *cli_hndl << endl;
-                    break;
-
-                case GenericError::TLS_CONNEX_CLOSE:
-                    cerr << "Client closed connection during request parsing." << endl;
-                    return;
-
-                default:
-                    cerr << "Error during request parsing." << endl;
-                    return;
+            if(err == GenericError::TLS_RETRY) {
+                cerr << "Retrying to parse HTTP request from " << *cli_hndl << endl;
+                continue;
             }
+            return;
         }
-    }while(parsing_hdrs);
-
+    }
 
     try {
         cli_hndl->serve_client(cache);
