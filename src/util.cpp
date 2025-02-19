@@ -136,7 +136,7 @@ std::string report_error(GenericError &err)
             return "Retrying TLS Read";
 
         case GenericError::CLI_HTTP_METHOD:
-            return "Invalid HTTP Method";
+            return "Unsupported HTTP Method";
 
         case GenericError::CLI_INVALID_HEADER:
         case GenericError::CLI_REQ_LINE_INVALID:

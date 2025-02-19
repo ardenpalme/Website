@@ -133,6 +133,7 @@ void redirect_client(shared_ptr<ClientHandler> cli_hndl)
 
 void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) 
 {
+    uint32_t retry_ct = 0;
     while(1) {
         try {
             cli_hndl->parse_request();
@@ -140,6 +141,7 @@ void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<ch
         }catch(GenericError &err) {
             if(err == GenericError::TLS_RETRY) {
                 cerr << "Retrying to parse HTTP request from " << *cli_hndl << endl;
+                if(++retry_ct > 2) break;
                 continue;
             }
             return;

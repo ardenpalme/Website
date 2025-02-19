@@ -59,12 +59,14 @@ void ClientHandler::serve_static_compress(string filename, shared_ptr<Cache<tupl
 
     if((fd=open(filename.c_str(), O_RDONLY)) == -1) {
         cerr << "Error opening " << filename << endl;
+        redirect_cli_404();
         return;
     }
 
     if((ret=fstat(fd, &sb)) == -1){
         cerr << "fstat() error for " << filename << endl;
         close(fd);
+        redirect_cli_404();
         return;
     }
     file_modified_time = sb.st_mtime;
@@ -177,6 +179,6 @@ void ClientHandler::redirect_cli()
 
 std::ostream& operator<<(std::ostream &os, const ClientHandler &cli)
 {
-    os << cli.hostname << ":" << cli.port << endl;
+    os << cli.hostname << ":" << cli.port;
     return os;
 }
