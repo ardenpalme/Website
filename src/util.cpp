@@ -142,6 +142,9 @@ std::string report_error(GenericError &err)
         case GenericError::CLI_REQ_LINE_INVALID:
             return "Invalid HTTP Request";
 
+        case GenericError::FILE_NOT_FOUND:
+            return "File not Found";
+
         case GenericError::FATAL:
         default:
             return "Fatal Error";

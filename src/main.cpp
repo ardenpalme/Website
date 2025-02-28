@@ -3,6 +3,7 @@
 #include<string>
 #include<thread>
 #include<chrono>
+#include <ctime>
 
 #include <unistd.h>
 #include <string.h>
@@ -45,18 +46,21 @@ int main(int argc, char *argv[])
     epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) {
         cerr << "Failed to create epoll file descriptor";
+        return 1;
     }
 
     ev.events = EPOLLIN;  
     ev.data.fd = listen_fd1;     
     if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd1, &ev) == -1) {
         cerr << "Failed to add fd1 to epoll";
+        return 1;
     }
 
     ev.events = EPOLLIN;  
     ev.data.fd = listen_fd2;     
     if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd2, &ev) == -1) {
-        cerr << "Failed to add fd1 to epoll";
+        cerr << "Failed to add fd2 to epoll";
+        return 1;
     }
 
     while (1) {
@@ -70,27 +74,27 @@ int main(int argc, char *argv[])
         }
 
         for (int i = 0; i < nfds; i++) {
-            // Handle HTTPS
             if (events[i].data.fd == listen_fd1) {
                 int connfd = accept(listen_fd1, (struct sockaddr*)&addr, &msg_len);
                 getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
                     100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
-                // Initialize a GnuTLS session
                 gnutls_session_t session = srv_ctx.new_session();
                 if(!session){
-                    cout << "GnuTLS session is NULL!\n";
                     close(connfd);
                     break;
                 } 
 
-                // Set the connection file descriptor
                 gnutls_transport_set_int(session, connfd);
 
-                // Perform TLS handshake
                 ret = gnutls_handshake(session);
                 if (ret < 0) {
-                    std::cerr << "GnuTLS handshake failed: " << gnutls_strerror(ret) << std::endl;
+                    std::time_t result = std::time(nullptr);
+                    string cli_name_str(cli_name);
+                    string cli_port_str(cli_port);
+                    std::cerr << "GnuTLS handshake failed: " << gnutls_strerror(ret) << " " 
+                              << cli_name_str << ":" << cli_port_str << " "
+                              << std::asctime(std::localtime(&result));
                     gnutls_deinit(session);
                     close(connfd);
                     break;
@@ -122,36 +126,25 @@ int main(int argc, char *argv[])
 
 void redirect_client(shared_ptr<ClientHandler> cli_hndl) 
 {
-    cout << "redirecting " << *cli_hndl << endl;
     try {
         cli_hndl->redirect_cli();
-    }catch(GenericError &err) {
-        report_error(err);
-        return;
+
+    } catch(GenericError &err) {
+        std::time_t result = std::time(nullptr);
+        cerr << "Error redirecting " << *cli_hndl << " - " << report_error(err)
+             << " " << std::asctime(std::localtime(&result));
     }
 }
 
 void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) 
 {
-    uint32_t retry_ct = 0;
-    while(1) {
-        try {
-            cli_hndl->parse_request();
-            break;
-        }catch(GenericError &err) {
-            if(err == GenericError::TLS_RETRY) {
-                cerr << "Retrying to parse HTTP request from " << *cli_hndl << endl;
-                if(++retry_ct > 2) break;
-                continue;
-            }
-            return;
-        }
-    }
-
     try {
+        cli_hndl->parse_request();
         cli_hndl->serve_client(cache);
 
-    }catch(GenericError &err) {
-        cerr << "Error serving " << *cli_hndl << " - " << report_error(err) << endl;
+    } catch(GenericError &err) {
+        std::time_t result = std::time(nullptr);
+        cerr << "Error serving " << *cli_hndl << " - " << report_error(err)
+             << " " << std::asctime(std::localtime(&result));
     }
 }

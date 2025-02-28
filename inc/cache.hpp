@@ -90,7 +90,7 @@ void Cache<T>::check_updates(void)
     }
 
     if(cache_grew) {
-        this->print();
+        //this->print();
         num_cache_entries = cached_pages.size();
     }
 }

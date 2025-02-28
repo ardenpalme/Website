@@ -15,7 +15,8 @@ enum class GenericError {
     TLS_RETRY,
     CLI_HTTP_METHOD,
     CLI_INVALID_HEADER,
-    CLI_REQ_LINE_INVALID
+    CLI_REQ_LINE_INVALID,
+    FILE_NOT_FOUND
 };
 
 std::string report_error(GenericError &err);
