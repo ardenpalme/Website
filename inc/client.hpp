@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <vector>
 #include <algorithm>
 #include <string>
@@ -20,11 +21,15 @@
 
 using namespace std;
 
+enum class WebProtocol {HTTPS, HTTP};
+
 class ClientHandler {
 public:
     ClientHandler(unique_ptr<ConnectionHandler> &_connex_hndl,
                   char *_hostname,
-                  char *_port) {
+                  char *_port, 
+                  WebProtocol protocol) : protocol{protocol} 
+    {
         connex_hndl = std::move(_connex_hndl);
 
         if(_hostname != NULL) hostname = string(_hostname);
@@ -33,6 +38,8 @@ public:
         if(_port != NULL) port = string(_port);
         else port = nullptr;
     }
+
+    WebProtocol get_protocol() { return protocol; }
 
     void parse_request(void);
 
@@ -45,6 +52,7 @@ public:
 private:
     unique_ptr<ConnectionHandler> connex_hndl;
     string hostname, port;
+    WebProtocol protocol;
     vector<string> request_line;
     map<string,string> request_hdrs;
 

@@ -39,8 +39,6 @@ private:
     gnutls_session_t session;
     shared_ptr<Cache<tuple<char*, size_t, time_t>>> cache;
 
-    void cleanup_openssl();
-
     gnutls_session_t create_session();
 
     void configure_session(gnutls_session_t session);

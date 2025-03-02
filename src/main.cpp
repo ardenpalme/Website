@@ -17,13 +17,18 @@
 #include "util.hpp"
 #include "client.hpp"
 #include "server.hpp"
+#include "thread_pool.hpp"
 
 #define HTTP_PORT (80)
 #define HTTPS_PORT (443)
 #define NUM_LISTEN_PORTS (2)
 
-void redirect_client(shared_ptr<ClientHandler> cli_hndl);
-void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache);
+struct ClientInfo{
+    shared_ptr<ClientHandler> cli_hndl;
+    shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache;
+};
+
+void handle_client(ClientInfo* cli_info);
 
 int main(int argc, char *argv[]) 
 {
@@ -63,6 +68,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    ThreadPool<ClientInfo> thread_pool(10, handle_client);
+
     while (1) {
         char cli_name[100];
         char cli_port[100];
@@ -100,11 +107,13 @@ int main(int argc, char *argv[])
                     break;
                 }
 
+                ClientInfo *cli_info = new ClientInfo;
                 auto connex_hndl = std::make_unique<ConnectionHandler>(session);
-                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port);
+                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port, WebProtocol::HTTPS);
+                cli_info->cli_hndl = cli_hndl_ptr; 
+                cli_info->cache = cache_ptr; 
 
-                std::thread cli_thread(handle_client, cli_hndl_ptr, cache_ptr);
-                cli_thread.detach();
+                thread_pool.enqueue(cli_info);
 
             // Redirect all HTTP requests to HTTPS
             }else if(events[i].data.fd == listen_fd2) {
@@ -112,11 +121,13 @@ int main(int argc, char *argv[])
                 getnameinfo((struct sockaddr*)&addr, msg_len, cli_name, 
                     100, cli_port, 100, NI_NUMERICHOST | NI_NUMERICSERV);
 
+                ClientInfo *cli_info = new ClientInfo;
                 auto connex_hndl = std::make_unique<ConnectionHandler>(connfd);
-                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port);
+                auto cli_hndl_ptr = std::make_shared<ClientHandler>(connex_hndl, cli_name, cli_port, WebProtocol::HTTP);
+                cli_info->cli_hndl = cli_hndl_ptr; 
+                cli_info->cache = cache_ptr; 
 
-                std::thread cli_thread(redirect_client, cli_hndl_ptr);
-                cli_thread.detach();
+                thread_pool.enqueue(cli_info);
             }
         }
     }
@@ -124,27 +135,32 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void redirect_client(shared_ptr<ClientHandler> cli_hndl) 
+void handle_client(ClientInfo *cli_info) 
 {
-    try {
-        cli_hndl->redirect_cli();
+    if(cli_info->cli_hndl->get_protocol() == WebProtocol::HTTPS) {
+        try {
+            cli_info->cli_hndl->parse_request();
+            cli_info->cli_hndl->serve_client(cli_info->cache);
 
-    } catch(GenericError &err) {
+        } catch(GenericError &err) {
+            std::time_t result = std::time(nullptr);
+            cerr << "Error serving " << *cli_info->cli_hndl << " - " << report_error(err)
+                << " " << std::asctime(std::localtime(&result));
+        }
+
+    }else if(cli_info->cli_hndl->get_protocol() == WebProtocol::HTTP) {
+        try {
+            cli_info->cli_hndl->redirect_cli();
+
+        } catch(GenericError &err) {
+            std::time_t result = std::time(nullptr);
+            cerr << "Error redirecting " << *cli_info->cli_hndl << " - " << report_error(err)
+                << " " << std::asctime(std::localtime(&result));
+        }
+
+    }else{
         std::time_t result = std::time(nullptr);
-        cerr << "Error redirecting " << *cli_hndl << " - " << report_error(err)
-             << " " << std::asctime(std::localtime(&result));
-    }
-}
-
-void handle_client(shared_ptr<ClientHandler> cli_hndl, shared_ptr<Cache<tuple<char*,size_t,time_t>>> cache) 
-{
-    try {
-        cli_hndl->parse_request();
-        cli_hndl->serve_client(cache);
-
-    } catch(GenericError &err) {
-        std::time_t result = std::time(nullptr);
-        cerr << "Error serving " << *cli_hndl << " - " << report_error(err)
-             << " " << std::asctime(std::localtime(&result));
+        cerr << "Unsupported Protocol" << *cli_info->cli_hndl 
+            << " " << std::asctime(std::localtime(&result));
     }
 }
