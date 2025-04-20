@@ -1,25 +1,42 @@
 services:
   app:
-    build:
-      context: .
+    build: .
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - .:/home/ubuntu/website
-    working_dir: /home/ubuntu/website
-    tty: true
+      - ./config:/app/config
+    working_dir: /app
     secrets:
-      - CA_Bundle
       - diakhatepalme_com_key
       - diakhatepalme_com_cert
+      - diakhatepalme_com_ca_bundle
+      - ardenpalme_com_key
+      - ardenpalme_com_cert
+      - ardenpalme_com_ca_bundle
+      - ardendiak_com_key
+      - ardendiak_com_cert
+      - ardendiak_com_ca_bundle
   
 secrets:
-  CA_Bundle:
-    file: /etc/pki/tls/private/My_CA_Bundle.ca-bundle
-
   diakhatepalme_com_key:
-    file: /etc/pki/tls/private/diakhate_palme_com.key
-
+    file: /etc/pki/tls/private/diakhatepalme_com.key
   diakhatepalme_com_cert:
-    file: /etc/pki/tls/private/diakhate_palme_com.crt
+    file: /etc/pki/tls/private/diakhatepalme_com.crt
+  diakhatepalme_com_ca_bundle:
+    file: /etc/pki/tls/private/diakhatepalme_com_ca_bundle.crt
+  
+  ardenpalme_com_key:
+    file: /etc/pki/tls/private/ardenpalme_com.key
+  ardenpalme_com_cert:
+    file: /etc/pki/tls/private/ardenpalme_com.crt
+  ardenpalme_com_ca_bundle:
+    file: /etc/pki/tls/private/ardenpalme_com_ca_bundle.crt
+
+  ardendiak_com_key:
+    file: /etc/pki/tls/private/ardendiak_com.key
+  ardendiak_com_cert:
+    file: /etc/pki/tls/private/ardendiak_com.crt
+  ardendiak_com_ca_bundle:
+    file: /etc/pki/tls/private/ardendiak_com_ca_bundle.crt

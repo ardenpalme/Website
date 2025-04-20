@@ -6,27 +6,41 @@ ssl:
   cert: '/run/secrets/diakhatepalme_com_cert'
   key: '/run/secrets/diakhatepalme_com_key'
   conf: [
-      ['CAfile', '/run/secrets/CA_Bundle']
+      ['CAfile', '/run/secrets/diakhatepalme_com_ca_bundle']
   ]
 listeners:
-    # address: Ip address,0.0.0.0 by default
   - address: 0.0.0.0
-    # port: Port number
     port: 80
-    # https: If true, use https for security,false by default
-    https: false
+    https: true
+
   - address: 0.0.0.0
     port: 443
     https: true
-    # cert,key: Cert file path and key file path, empty by default,
-    # if empty, use the global setting
-    cert: ''
-    key: ''
-    # use_old_tls: enable the TLS1.0/1.1, false by default
-    use_old_tls: false
-    ssl_conf: [
-      [MinProtocol, TLSv1.3],
-    ]
+    sni:
+      - server_name: "diakhatepalme.com"
+        cert: '/run/secrets/diakhatepalme_com_cert.pem'
+        key: '/run/secrets/diakhatepalme_com_key.pem'
+        ssl_conf: [
+          ['CAfile', '/run/secrets/diakhatepalme_com_ca_bundle.pem'],
+          ['MinProtocol', 'TLSv1.3']
+        ]
+
+      - server_name: "ardenpalme.com"
+        cert: '/run/secrets/ardenpalme_com_cert.pem'
+        key: '/run/secrets/ardenpalme_com_key.pem'
+        ssl_conf: [
+          ['CAfile', '/run/secrets/ardenpalme_com_ca_bundle.pem'],
+          ['MinProtocol', 'TLSv1.3']
+        ]
+
+      - server_name: "ardendiak.com"
+        cert: '/run/secrets/ardendiak_com_cert.pem'
+        key: '/run/secrets/ardendiak_com_key.pem'
+        ssl_conf: [
+          ['CAfile', '/run/secrets/ardendiak_com_ca_bundle.pem'],
+          ['MinProtocol', 'TLSv1.3']
+        ]
+
 # db_clients:
 #     # name: Name of the client,'default' by default
 #   - name: default

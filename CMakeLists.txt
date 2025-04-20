@@ -18,8 +18,6 @@ endif ()
 
 set(INC_DIR ${CMAKE_SOURCE_DIR}/inc)
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
-set(BIN_DIR ${CMAKE_SOURCE_DIR}/bin)
-file(MAKE_DIRECTORY ${BIN_DIR})
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -63,7 +61,5 @@ target_sources(${PROJECT_NAME}
                ${FILTER_SRC}
                ${PLUGIN_SRC}
                ${MODEL_SRC})
-
-set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
 
 #add_subdirectory(test)

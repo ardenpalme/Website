@@ -22,3 +22,15 @@ RUN cd /opt \
     && cmake .. \
     && make \
     && make install
+
+# Set workdir and copy files
+WORKDIR /app
+COPY . .
+
+# Build application
+RUN mkdir -p build && \
+    cd build && \
+    cmake .. && \
+    make
+
+CMD ["/app/build/website"]
